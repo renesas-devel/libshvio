@@ -23,8 +23,6 @@ AC_CONFIG_SRCDIR([src/libshveu/veu_colorspace.c])
 
 AC_PREREQ(2.53)
 
-AC_CANONICAL_TARGET
-
 AM_INIT_AUTOMAKE(libshveu, 1.3.0)
 AM_CONFIG_HEADER(config.h)
 
