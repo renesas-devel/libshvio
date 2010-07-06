@@ -148,7 +148,7 @@ static void set_scale(struct uio_map *ump, int vertical,
 #ifdef KERNEL2_6_33
 	if (sh_veu_is_veu3f(ump)) {
 #endif
-	    if (zoom)
+	    if (size_out >= size_in)
 	        vb = 64;
 	    else {
 	        if ((mant >= 8) && (mant < 16))
@@ -166,7 +166,7 @@ static void set_scale(struct uio_map *ump, int vertical,
 	    value = read_reg(ump, VRPBR);
 	    if (vertical) {
 	        value &= ~0xffff0000;
-	        value |= vb << 16;
+		value |= vb << 16;
 	    } else {
 	        value &= ~0xffff;
 	        value |= vb;
