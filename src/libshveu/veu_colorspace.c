@@ -199,6 +199,8 @@ crop_offset(
 
 	if (fmt == V4L2_PIX_FMT_RGB565) {
 		*py += 2 * offset;
+	} else if (fmt == V4L2_PIX_FMT_RGB32) {
+		*py += 4 * offset;
 	} else if (fmt == V4L2_PIX_FMT_NV12) {
 		*py += offset;
 		*pc += offset/2;
@@ -213,7 +215,8 @@ static int format_supported(int fmt)
 {
 	if ((fmt == V4L2_PIX_FMT_NV12) ||
 	    (fmt == V4L2_PIX_FMT_NV16) ||
-	    (fmt == V4L2_PIX_FMT_RGB565))
+	    (fmt == V4L2_PIX_FMT_RGB565) ||
+	    (fmt == V4L2_PIX_FMT_RGB32))
 		return 1;
 	return 0;
 }
@@ -402,6 +405,8 @@ shveu_start_locked(
 
 	if (src_fmt == V4L2_PIX_FMT_RGB565)
 		src_pitch *= 2;
+	if (src_fmt == V4L2_PIX_FMT_RGB32)
+		src_pitch *= 4;
 	write_reg(ump, src_pitch, VESWR);
 	write_reg(ump, 0, VBSSR);	/* not using bundle mode */
 
@@ -429,15 +434,21 @@ shveu_start_locked(
 
 	if (dst_fmt == V4L2_PIX_FMT_RGB565)
 		dst_pitch *= 2;
+	if (dst_fmt == V4L2_PIX_FMT_RGB32)
+		dst_pitch *= 4;
 	write_reg(ump, dst_pitch, VEDWR);
 
 	/* byte/word swapping */
 	{
 		unsigned long vswpr = 0;
-		if (src_fmt == V4L2_PIX_FMT_RGB565)
+		if (src_fmt == V4L2_PIX_FMT_RGB32)
+			vswpr |= 0;
+		else if (src_fmt == V4L2_PIX_FMT_RGB565)
 			vswpr |= 0x6;
 		else
 			vswpr |= 0x7;
+		if (dst_fmt == V4L2_PIX_FMT_RGB32)
+			vswpr |= 0;
 		if (dst_fmt == V4L2_PIX_FMT_RGB565)
 			vswpr |= 0x60;
 		else
@@ -451,27 +462,46 @@ shveu_start_locked(
 	/* transform control */
 	{
 		unsigned long vtrcr = 0;
-		if (src_fmt == V4L2_PIX_FMT_RGB565) {
+		switch (src_fmt)
+		{
+		case V4L2_PIX_FMT_RGB565:
 			vtrcr |= VTRCR_RY_SRC_RGB;
 			vtrcr |= VTRCR_SRC_FMT_RGB565;
-		} else {
+			break;
+		case V4L2_PIX_FMT_RGB32:
+			vtrcr |= VTRCR_RY_SRC_RGB;
+			vtrcr |= VTRCR_SRC_FMT_RGBX888;
+			break;
+		case V4L2_PIX_FMT_NV12:
 			vtrcr |= VTRCR_RY_SRC_YCBCR;
-			if (src_fmt == V4L2_PIX_FMT_NV12)
-				vtrcr |= VTRCR_SRC_FMT_YCBCR420;
-			else
-				vtrcr |= VTRCR_SRC_FMT_YCBCR422;
+			vtrcr |= VTRCR_SRC_FMT_YCBCR420;
+			break;
+		case V4L2_PIX_FMT_NV16:
+			vtrcr |= VTRCR_RY_SRC_YCBCR;
+			vtrcr |= VTRCR_SRC_FMT_YCBCR422;
 		}
 
-		if (dst_fmt == V4L2_PIX_FMT_RGB565) {
+		switch (dst_fmt)
+		{
+		case V4L2_PIX_FMT_RGB565:
 			vtrcr |= VTRCR_DST_FMT_RGB565;
-		} else {
-			if (dst_fmt == V4L2_PIX_FMT_NV12)
-				vtrcr |= VTRCR_DST_FMT_YCBCR420;
-			else
-				vtrcr |= VTRCR_DST_FMT_YCBCR422;
+			break;
+		case V4L2_PIX_FMT_RGB32:
+			vtrcr |= VTRCR_DST_FMT_RGBX888;
+			break;
+		case V4L2_PIX_FMT_NV12:
+			vtrcr |= VTRCR_DST_FMT_YCBCR420;
+			break;
+		case V4L2_PIX_FMT_NV16:
+			vtrcr |= VTRCR_DST_FMT_YCBCR422;
 		}
 
-		if (src_fmt != dst_fmt) {
+		if ((src_fmt == V4L2_PIX_FMT_RGB565 || src_fmt == V4L2_PIX_FMT_RGB32)
+		    && (dst_fmt == V4L2_PIX_FMT_NV12 || dst_fmt == V4L2_PIX_FMT_NV16)) {
+			vtrcr |= VTRCR_TE_BIT_SET;
+		}
+		if ((dst_fmt == V4L2_PIX_FMT_RGB565 || dst_fmt == V4L2_PIX_FMT_RGB32)
+		    && (src_fmt == V4L2_PIX_FMT_NV12 || src_fmt == V4L2_PIX_FMT_NV16)) {
 			vtrcr |= VTRCR_TE_BIT_SET;
 		}
 		write_reg(ump, vtrcr, VTRCR);

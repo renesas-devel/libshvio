@@ -19,6 +19,8 @@
 
 /** \file
  * Image/Video processing: Scale, rotate, crop, color conversion
+ * Note: When using V4L2_PIX_FMT_RGB32 format, the data it treated as XRGB888,
+ * i.e. the most significant byte is ignored.
  */
 
 #ifndef __VEU_COLORSPACE_H__
@@ -40,13 +42,13 @@ typedef enum {
  * \param src_width Width in pixels of source image
  * \param src_height Height in pixels of source image
  * \param src_pitch Line pitch of source image
- * \param src_fmt Format of source image  (V4L2_PIX_FMT_NV12, V4L2_PIX_FMT_NV16, V4L2_PIX_FMT_RGB565)
+ * \param src_fmt Format of source image  (V4L2_PIX_FMT_NV12, V4L2_PIX_FMT_NV16, V4L2_PIX_FMT_RGB565, V4L2_PIX_FMT_RGB32)
  * \param dst_py Physical address of Y or RGB plane of destination image
  * \param dst_pc Physical address of CbCr plane of destination image (ignored for RGB)
  * \param dst_width Width in pixels of destination image
  * \param dst_height Height in pixels of destination image
  * \param dst_pitch Line pitch of destination image
- * \param dst_fmt Format of destination image (V4L2_PIX_FMT_NV12, V4L2_PIX_FMT_NV16, V4L2_PIX_FMT_RGB565)
+ * \param dst_fmt Format of destination image (V4L2_PIX_FMT_NV12, V4L2_PIX_FMT_NV16, V4L2_PIX_FMT_RGB565, V4L2_PIX_FMT_RGB32)
  * \param rotate Rotation to apply
  * \retval 0 Success
  * \retval -1 Error: Attempt to perform simultaneous scaling and rotation
@@ -109,10 +111,10 @@ shveu_rescale(
  * \param src_pc Physical address of CbCr plane of source image (ignored for RGB)
  * \param src_width Width in pixels of source image
  * \param src_height Height in pixels of source image
- * \param src_fmt Format of source image (V4L2_PIX_FMT_NV12, V4L2_PIX_FMT_NV16, V4L2_PIX_FMT_RGB565)
+ * \param src_fmt Format of source image (V4L2_PIX_FMT_NV12, V4L2_PIX_FMT_NV16, V4L2_PIX_FMT_RGB565, V4L2_PIX_FMT_RGB32)
  * \param dst_py Physical address of Y or RGB plane of destination image
  * \param dst_pc Physical address of CbCr plane of destination image (ignored for RGB)
- * \param dst_fmt Format of destination image (V4L2_PIX_FMT_NV12, V4L2_PIX_FMT_NV16, V4L2_PIX_FMT_RGB565)
+ * \param dst_fmt Format of destination image (V4L2_PIX_FMT_NV12, V4L2_PIX_FMT_NV16, V4L2_PIX_FMT_RGB565, V4L2_PIX_FMT_RGB32)
  * \param rotate Rotation to apply
  * \retval 0 Success
  * \retval -1 Error: Unsupported parameters
