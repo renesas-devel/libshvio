@@ -23,7 +23,7 @@ AC_CONFIG_SRCDIR([src/libshveu/veu_colorspace.c])
 
 AC_PREREQ(2.53)
 
-AM_INIT_AUTOMAKE(libshveu, 1.3.0)
+AM_INIT_AUTOMAKE(libshveu, 1.4.0)
 AM_CONFIG_HEADER(config.h)
 
 ################################################################################
@@ -43,7 +43,7 @@ AM_CONFIG_HEADER(config.h)
 #     then set AGE to 0.                                                       #
 #                                                                              #
 ################################################################################
-SHARED_VERSION_INFO="3:0:0"
+SHARED_VERSION_INFO="4:0:0"
 SHLIB_VERSION_ARG=""
 
 # Checks for programs.

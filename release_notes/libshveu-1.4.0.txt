@@ -1,0 +1,88 @@
+libshveu Release 1.4.0
+======================
+
+libshveu: A library for controlling SH-Mobile VEU
+
+The source archive, and more information about the library are available from:
+
+	http://oss.renesas.com/modules/document/?libshveu
+
+New in this release
+-------------------
+
+This release significantly changes the API. Now shveu_open returns a handle
+to a scaler instance and this handle must be used in all subsequent libshveu
+calls.
+The API has also been changed to allow selection of a sub-image on the source
+and cropping of the destination image. Both of these are performed with the 
+shveu_crop function.
+
+The calculation for the scale size has been corrected and also modified to use
+the full range of bits.
+
+Additionally, a new tool has been added, shveu-display, that can take raw YUV
+or RGB files and display them on the screen. The tool allows you to zoom in/out
+and pan the image. 
+
+Changes
+-------
+
+This release includes the following changes since version 1.3.0:
+
+Conrad Parker (1):
+      build shveu-display conditionally, if have ncurses
+
+Phil Edworthy (28):
+      Use UIOmux for device memory
+      Add UIOmux locking to library
+      Use standard mechanism to check VEU hardware version
+      Move probe contents into shveu_open
+      Fix VEU use when still running
+      Fix scale reg settings.
+      Modified API to allow multiple VEU instances.
+      Changed API to use v4l2 formats
+      Use typed VEU handle rather than void ptr
+      Change fn names to protect against accidential use.
+      tools: New tool to show zoomed image on display.
+      Add crop fn and simplify API (rescale & rotate fns).
+      Fix scaling calculation.
+      tools: Add 720p support to shveu-display
+      tools: Fix display_update for new API
+      tools: Add header guard to display.h
+      tools: Better error checking
+      tools: Add D1 size to shveu-display.
+      docs: Fix doxygen API comments.
+      Remove generated files
+      autotools: Clean up dependency on uiomux
+      autotools: Remove AC_CANONICAL_TARGET
+      autotools: Fix for autoreconf
+      docs: Remove old plan as its no longer accurate.
+      Merge branch 'master' into uiomux
+      Correct authors
+      Added support for RGBX888.
+      Merge branch 'uiomux'
+
+ AUTHORS                        |    2 +-
+ INSTALL                        |    1 -
+ Makefile.am                    |    2 +
+ README                         |   40 ---
+ TODO                           |    6 -
+ configure.ac                   |   59 ++---
+ include/shveu/shveu.h          |   14 +-
+ include/shveu/veu_colorspace.h |  126 ++++----
+ libshveu.plan                  |   16 -
+ src/libshveu/Version_script.in |    8 +-
+ src/libshveu/shveu_regs.h      |   11 +-
+ src/libshveu/veu_colorspace.c  |  584 ++++++++++++++++++++-----------------
+ src/tools/Makefile.am          |    9 +-
+ src/tools/display.c            |  244 +++++++++++++++
+ src/tools/display.h            |  102 +++++++
+ src/tools/shveu-convert.c      |   48 ++--
+ src/tools/shveu-display.c      |  635 ++++++++++++++++++++++++++++++++++++++++
+ 17 files changed, 1438 insertions(+), 469 deletions(-)
+ delete mode 120000 INSTALL
+ delete mode 100644 libshveu.plan
+ create mode 100644 src/tools/display.c
+ create mode 100644 src/tools/display.h
+ create mode 100644 src/tools/shveu-display.c
+
