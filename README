@@ -18,7 +18,7 @@ libshveu API
 
 libshveu allows both synchronous and asynchronous access to the VEU. The synchronous API
 provides a one-shot function shveu_operation(). The asychronous API replaces this with a
-similar but non-blocking function, shveu_start(), and a corresponding shveu_wait().
+similar but non-blocking function, shveu_start_locked(), and a corresponding shveu_wait().
 
 
 shveu-convert
@@ -40,7 +40,7 @@ and either rotation or scaling on each input frame.
     Input options
       -c, --input-colorspace (RGB565, NV12, YCbCr420, YCbCr422)
                              Specify input colorspace
-      -s, --input-size       Set the input image size (qcif, cif, qvga, vga)
+      -s, --input-size       Set the input image size (qcif, cif, qvga, vga, d1)
     
     Output options
       -o filename, --output filename
@@ -50,7 +50,7 @@ and either rotation or scaling on each input frame.
     
     Transform options
       Note that the VEU does not support combined rotation and scaling.
-      -S, --output-size      Set the output image size (qcif, cif, qvga, vga)
+      -S, --output-size      Set the output image size (qcif, cif, qvga, vga, d1)
                              [default is same as input size, ie. no rescaling]
       -r, --rotate           Rotate the image 90 degrees clockwise
     
@@ -58,6 +58,39 @@ and either rotation or scaling on each input frame.
       -h, --help             Display this help and exit
       -v, --version          Output version information and exit
     
+    File extensions are interpreted as follows unless otherwise specified:
+      .yuv    YCbCr420
+      .rgb    RGB565
+
+
+shveu-display
+-------------
+
+shveu-convert is a commandline program for displaying raw image or video
+files. It uses the SH-Mobile VEU to perform simultaneous colorspace conversion
+and scaling on each input frame. It allows the user to zoom in/out and pan the
+image.
+
+    Usage: shveu-display [options] [input-filename]
+    Processes raw image data using the SH-Mobile VEU and displays on screen.
+
+    If no input filename is specified, a simple image will be created.
+
+    Input options
+      -c, --input-colorspace (RGB565, NV12, YCbCr420, YCbCr422)
+                             Specify input colorspace
+      -s, --input-size       Set the input image size (qcif, cif, qvga, vga, d1, 720p)
+
+    Control keys
+      +/-                    Zoom in/out
+      Cursor keys            Pan
+      =                      Reset zoom and panning
+      q                      Quit
+
+    Miscellaneous options
+      -h, --help             Display this help and exit
+      -v, --version          Output version information and exit
+
     File extensions are interpreted as follows unless otherwise specified:
       .yuv    YCbCr420
       .rgb    RGB565
