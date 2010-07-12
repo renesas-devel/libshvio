@@ -20,15 +20,6 @@
 #ifndef __SHVEU_REGS_H__
 #define __SHVEU_REGS_H__
 
-#define YCBCR_COMP_RANGE (0 << 16)
-#define YCBCR_FULL_RANGE (1 << 16)
-#define YCBCR_BT601      (0 << 17)
-#define YCBCR_BT709      (1 << 17)
-
-#define SH_VEU_RESERVE_TOP (512 << 10)
-#define YUV_COLOR
-#define CACHED_UV
-
 #define VESTR 0x00		/* start register */
 #define VESWR 0x10		/* src: line length */
 #define VESSR 0x14		/* src: image size */
@@ -72,10 +63,12 @@
 #define VTRCR_DST_FMT_YCBCR422 (1 << 22)
 #define VTRCR_DST_FMT_YCBCR444 (2 << 22)
 #define VTRCR_DST_FMT_RGB565   (6 << 16)
+#define VTRCR_DST_FMT_RGBX888  (20 << 16)
 #define VTRCR_SRC_FMT_YCBCR420 (0 << 14)
 #define VTRCR_SRC_FMT_YCBCR422 (1 << 14)
 #define VTRCR_SRC_FMT_YCBCR444 (2 << 14)
 #define VTRCR_SRC_FMT_RGB565   (3 << 8)
+#define VTRCR_SRC_FMT_RGBX888  (0 << 8)
 #define VTRCR_BT601            (0 << 3)
 #define VTRCR_BT709            (1 << 3)
 #define VTRCR_FULL_COLOR_CONV  (1 << 2)
