@@ -1,5 +1,5 @@
 ################################################################################
-# libshveu: A library for controlling SH-Mobile hardware codecs             #
+# libshveu: A library for controlling SH-Mobile VEU hardware                   #
 # Copyright (C) 2009 Renesas Technology Corp.                                  #
 #                                                                              #
 # This library is free software; you can redistribute it and/or                #
@@ -19,7 +19,7 @@
 
 # Process this file with autoconf to produce a configure script.
 AC_INIT
-AC_CONFIG_SRCDIR([src/libshveu/veu_colorspace.c])
+AC_CONFIG_SRCDIR([src/libshveu/veu.c])
 
 AC_PREREQ(2.53)
 

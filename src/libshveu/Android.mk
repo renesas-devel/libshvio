@@ -7,7 +7,7 @@ LOCAL_C_INCLUDES := \
 #LOCAL_CFLAGS := -DDEBUG
 
 LOCAL_SRC_FILES := \
-	veu_colorspace.c
+	veu.c
 
 LOCAL_SHARED_LIBRARIES := libcutils
 
