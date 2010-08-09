@@ -36,20 +36,28 @@ typedef enum {
 	SHVEU_ROT_90,	/**< Rotate 90 degrees clockwise */
 } shveu_rotation_t;
 
-/** Start a (scale|rotate) & crop between YCbCr 4:2:0 & RG565 surfaces
+/** Start a (scale|rotate) & crop between YCbCr & RGB surfaces
  * \param veu VEU handle
  * \param src_py Physical address of Y or RGB plane of source image
  * \param src_pc Physical address of CbCr plane of source image (ignored for RGB)
  * \param src_width Width in pixels of source image
  * \param src_height Height in pixels of source image
  * \param src_pitch Line pitch of source image
- * \param src_fmt Format of source image  (V4L2_PIX_FMT_NV12, V4L2_PIX_FMT_NV16, V4L2_PIX_FMT_RGB565, V4L2_PIX_FMT_RGB32)
+ * \param src_fmt Format of source image. One of:
+ *		V4L2_PIX_FMT_NV12
+ *		V4L2_PIX_FMT_NV16
+ *		V4L2_PIX_FMT_RGB565
+ *		V4L2_PIX_FMT_RGB32
  * \param dst_py Physical address of Y or RGB plane of destination image
  * \param dst_pc Physical address of CbCr plane of destination image (ignored for RGB)
  * \param dst_width Width in pixels of destination image
  * \param dst_height Height in pixels of destination image
  * \param dst_pitch Line pitch of destination image
- * \param dst_fmt Format of destination image (V4L2_PIX_FMT_NV12, V4L2_PIX_FMT_NV16, V4L2_PIX_FMT_RGB565, V4L2_PIX_FMT_RGB32)
+ * \param dst_fmt Format of destination image. One of:
+ *		V4L2_PIX_FMT_NV12
+ *		V4L2_PIX_FMT_NV16
+ *		V4L2_PIX_FMT_RGB565
+ *		V4L2_PIX_FMT_RGB32
  * \param rotate Rotation to apply
  * \retval 0 Success
  * \retval -1 Error: Attempt to perform simultaneous scaling and rotation
@@ -77,18 +85,26 @@ shveu_start_locked(
 void
 shveu_wait(SHVEU *veu);
 
-/** Perform scale & crop between YCbCr 4:2:0 & RG565 surfaces
+/** Perform scale & crop between YCbCr & RGB surfaces
  * \param veu VEU handle
  * \param src_py Physical address of Y or RGB plane of source image
  * \param src_pc Physical address of CbCr plane of source image (ignored for RGB)
  * \param src_width Width in pixels of source image
  * \param src_height Height in pixels of source image
- * \param src_fmt Format of source image (V4L2_PIX_FMT_NV12, V4L2_PIX_FMT_NV16, V4L2_PIX_FMT_RGB565)
+ * \param src_fmt Format of source image. One of:
+ *		V4L2_PIX_FMT_NV12
+ *		V4L2_PIX_FMT_NV16
+ *		V4L2_PIX_FMT_RGB565
+ *		V4L2_PIX_FMT_RGB32
  * \param dst_py Physical address of Y or RGB plane of destination image
  * \param dst_pc Physical address of CbCr plane of destination image (ignored for RGB)
  * \param dst_width Width in pixels of destination image
  * \param dst_height Height in pixels of destination image
- * \param dst_fmt Format of destination image (V4L2_PIX_FMT_NV12, V4L2_PIX_FMT_NV16, V4L2_PIX_FMT_RGB565)
+ * \param dst_fmt Format of destination image. One of:
+ *		V4L2_PIX_FMT_NV12
+ *		V4L2_PIX_FMT_NV16
+ *		V4L2_PIX_FMT_RGB565
+ *		V4L2_PIX_FMT_RGB32
  * \retval 0 Success
  * \retval -1 Error: Unsupported parameters
  */
@@ -106,16 +122,24 @@ shveu_rescale(
 	unsigned long dst_height,
 	int dst_fmt);
 
-/** Perform rotate & crop between YCbCr 4:2:0 & RG565 surfaces
+/** Perform rotate & crop between YCbCr & RGB surfaces
  * \param veu VEU handle
  * \param src_py Physical address of Y or RGB plane of source image
  * \param src_pc Physical address of CbCr plane of source image (ignored for RGB)
  * \param src_width Width in pixels of source image
  * \param src_height Height in pixels of source image
- * \param src_fmt Format of source image (V4L2_PIX_FMT_NV12, V4L2_PIX_FMT_NV16, V4L2_PIX_FMT_RGB565, V4L2_PIX_FMT_RGB32)
+ * \param src_fmt Format of source image. One of:
+ *		V4L2_PIX_FMT_NV12
+ *		V4L2_PIX_FMT_NV16
+ *		V4L2_PIX_FMT_RGB565
+ *		V4L2_PIX_FMT_RGB32
  * \param dst_py Physical address of Y or RGB plane of destination image
  * \param dst_pc Physical address of CbCr plane of destination image (ignored for RGB)
- * \param dst_fmt Format of destination image (V4L2_PIX_FMT_NV12, V4L2_PIX_FMT_NV16, V4L2_PIX_FMT_RGB565, V4L2_PIX_FMT_RGB32)
+ * \param dst_fmt Format of destination image. One of:
+ *		V4L2_PIX_FMT_NV12
+ *		V4L2_PIX_FMT_NV16
+ *		V4L2_PIX_FMT_RGB565
+ *		V4L2_PIX_FMT_RGB32
  * \param rotate Rotation to apply
  * \retval 0 Success
  * \retval -1 Error: Unsupported parameters
@@ -134,7 +158,8 @@ shveu_rotate(
 	shveu_rotation_t rotate);
 
 
-/** Set cropping attributes
+/** Set cropping attributes.
+ * This is called prior to calling shveu_rescale, shveu_rotate, or shveu_start_locked.
  * \param veu VEU handle
  * \param crop_dst Set cropping attributes for source(=1) or destination(=0)
  * \param x1 Horizontal offset to left of image selection

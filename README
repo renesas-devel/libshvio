@@ -22,7 +22,7 @@ synchronous API provides a one-shot function shveu_operation(). The asychronous
 API replaces this with a similar but non-blocking function, shveu_start_locked(),
 and a corresponding shveu_wait().
 
-Please see doc/libshbeu/html/index.html for API details.
+Please see doc/libshveu/html/index.html for API details.
 
 
 shveu-convert

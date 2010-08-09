@@ -29,7 +29,8 @@ extern "C" {
  *
  * \section intro SHVEU: A library for accessing the VEU.
  *
- * This is the documentation for the SHVEU C API.
+ * This is the documentation for the SHVEU C API. Please read the associated
+ * README, COPYING and TODO files.
  *
  * Features:
  *  - Simple interface to colorspace conversion, rotation, scaling
