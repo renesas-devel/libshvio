@@ -4,9 +4,10 @@ libshveu
 libshveu: A library for controlling the SH-Mobile VEU.
 
 Copyright (C) 2009 Renesas Technology Corp.
+Copyright (C) 2010 Renesas Electronics Corporation
 
-The [SH-Mobile][0] processor series includes a hardware video engine
-unit (VEU) that supports colorspace conversion, rotation and scaling.
+The [SH-Mobile][0] processor series includes a hardware video engine unit (VEU)
+that supports colorspace conversion, rotation and scaling.
 
 This source archive contains:
 
@@ -16,17 +17,20 @@ This source archive contains:
 libshveu API
 ------------
 
-libshveu allows both synchronous and asynchronous access to the VEU. The synchronous API
-provides a one-shot function shveu_operation(). The asychronous API replaces this with a
-similar but non-blocking function, shveu_start_locked(), and a corresponding shveu_wait().
+libshveu allows both synchronous and asynchronous access to the VEU. The
+synchronous API provides a one-shot function shveu_operation(). The asychronous
+API replaces this with a similar but non-blocking function, shveu_start_locked(),
+and a corresponding shveu_wait().
+
+Please see doc/libshbeu/html/index.html for API details.
 
 
 shveu-convert
 -------------
 
-shveu-convert is a commandline program for converting raw image or video
-files. It uses the SH-Mobile VEU to perform simultaneous colorspace conversion
-and either rotation or scaling on each input frame.
+shveu-convert is a commandline program for converting raw image or video files.
+It uses the SH-Mobile VEU to perform simultaneous colorspace conversion and
+either rotation or scaling on each input frame.
 
     Usage: shveu-convert [options] [input-filename [output-filename]]
     Convert raw image data using the SH-Mobile VEU.
@@ -66,10 +70,9 @@ and either rotation or scaling on each input frame.
 shveu-display
 -------------
 
-shveu-convert is a commandline program for displaying raw image or video
-files. It uses the SH-Mobile VEU to perform simultaneous colorspace conversion
-and scaling on each input frame. It allows the user to zoom in/out and pan the
-image.
+shveu-display is a commandline program for displaying raw image or video files.
+It uses the SH-Mobile VEU to perform simultaneous colorspace conversion and
+scaling on each input frame. It allows the user to zoom in/out and pan the image.
 
     Usage: shveu-display [options] [input-filename]
     Processes raw image data using the SH-Mobile VEU and displays on screen.
@@ -99,10 +102,9 @@ image.
 SH-Mobile
 ---------
 
-The [SH-Mobile][0] processor series includes a hardware video engine
-unit that supports colorspace conversion, rotation and scaling. Some models
-also include support for camera capture, JPEG processing, and DSP
-instructions.
+The [SH-Mobile][0] processor series includes a hardware video engine unit that
+supports colorspace conversion, rotation and scaling. Some models also include
+support for camera capture, JPEG processing, and DSP instructions.
 
 [0]: http://www.renesas.com/fmwk.jsp?cnt=sh_mobile_family_landing.jsp&fp=/products/mpumcu/sh_mobile/
 
@@ -112,7 +114,8 @@ Kernel configuration
 libshveu uses the Linux kernel UIO support for the SH-Mobile VEU, which was
 added in 2.6.27.
 
-The following kernel boot option reserves physically contiguous memory for VEU use:
+The following kernel boot option reserves physically contiguous memory for VEU
+use:
 
     memchunk.veu=4m
 

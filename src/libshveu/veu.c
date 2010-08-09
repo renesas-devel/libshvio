@@ -1,6 +1,7 @@
 /*
  * libshveu: A library for controlling SH-Mobile VEU
  * Copyright (C) 2009 Renesas Technology Corp.
+ * Copyright (C) 2010 Renesas Electronics Corporation
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -53,7 +54,6 @@ struct rect {
 struct SHVEU {
 	UIOMux *uiomux;
 	struct uio_map uio_mmio;
-	struct uio_map uio_mem;
 
 	int crop_src;
 	struct rect scrop;
@@ -221,6 +221,28 @@ static int format_supported(int fmt)
 	return 0;
 }
 
+static int is_ycbcr(int fmt)
+{
+	if ((fmt == V4L2_PIX_FMT_NV12) || (fmt == V4L2_PIX_FMT_NV16))
+		return 1;
+	return 0;
+}
+
+static int is_rgb(int fmt)
+{
+	if ((fmt == V4L2_PIX_FMT_RGB565) || (fmt == V4L2_PIX_FMT_RGB32))
+		return 1;
+	return 0;
+}
+
+static int different_colorspace(int fmt1, int fmt2)
+{
+	if ((is_rgb(fmt1) && is_ycbcr(fmt2))
+	   || (is_ycbcr(fmt1) && is_rgb(fmt2)))
+		return 1;
+	return 0;
+}
+
 static int width(struct rect *r)
 {
 	return (r->br.x - r->tl.x);
@@ -239,15 +261,6 @@ static void limit(struct rect *r, int x1, int y1, int x2, int y2)
 	if (r->br.y > y2) r->br.y = y2;
 }
 
-
-void shveu_close(SHVEU *pvt)
-{
-	if (pvt) {
-		if (pvt->uiomux)
-			uiomux_close(pvt->uiomux);
-		free(pvt);
-	}
-}
 
 SHVEU *shveu_open(void)
 {
@@ -269,13 +282,6 @@ SHVEU *shveu_open(void)
 	if (!ret)
 		goto err;
 
-	ret = uiomux_get_mem (veu->uiomux, UIOMUX_SH_VEU,
-		&veu->uio_mem.address,
-		&veu->uio_mem.size,
-		&veu->uio_mem.iomem);
-	if (!ret)
-		goto err;
-
 	veu->crop_src = 0;
 	veu->crop_dst = 0;
 
@@ -284,6 +290,15 @@ SHVEU *shveu_open(void)
 err:
 	shveu_close(veu);
 	return 0;
+}
+
+void shveu_close(SHVEU *pvt)
+{
+	if (pvt) {
+		if (pvt->uiomux)
+			uiomux_close(pvt->uiomux);
+		free(pvt);
+	}
 }
 
 int
@@ -447,6 +462,7 @@ shveu_start_locked(
 			vswpr |= 0x6;
 		else
 			vswpr |= 0x7;
+
 		if (dst_fmt == V4L2_PIX_FMT_RGB32)
 			vswpr |= 0;
 		if (dst_fmt == V4L2_PIX_FMT_RGB565)
@@ -496,14 +512,8 @@ shveu_start_locked(
 			vtrcr |= VTRCR_DST_FMT_YCBCR422;
 		}
 
-		if ((src_fmt == V4L2_PIX_FMT_RGB565 || src_fmt == V4L2_PIX_FMT_RGB32)
-		    && (dst_fmt == V4L2_PIX_FMT_NV12 || dst_fmt == V4L2_PIX_FMT_NV16)) {
+		if (different_colorspace(src_fmt, dst_fmt))
 			vtrcr |= VTRCR_TE_BIT_SET;
-		}
-		if ((dst_fmt == V4L2_PIX_FMT_RGB565 || dst_fmt == V4L2_PIX_FMT_RGB32)
-		    && (src_fmt == V4L2_PIX_FMT_NV12 || src_fmt == V4L2_PIX_FMT_NV16)) {
-			vtrcr |= VTRCR_TE_BIT_SET;
-		}
 		write_reg(ump, vtrcr, VTRCR);
 #if DEBUG
 		fprintf(stderr, "vtrcr=0x%X\n", vtrcr);

@@ -1,5 +1,9 @@
 /*
- * Tool to scale raw images for the display
+ * Tool to demonstrate VEU hardware acceleration of raw image scaling.
+ *
+ * The RGB/YCbCr source image is read from a file, scaled and displayed on the
+ * framebuffer. It uses an ncurses interface to allow the user to zoom in/out
+ * and pan the output image.
  */
 
 #ifdef HAVE_CONFIG_H
@@ -462,11 +466,11 @@ int main (int argc, char * argv[])
 	if (show_version) {
 		printf ("%s version " VERSION "\n", progname);
 	}
-      
+
 	if (show_help) {
 		usage (progname);
 	}
-      
+
 	if (show_version || show_help) {
 		goto exit_ok;
 	}

@@ -1,6 +1,7 @@
 /*
  * libshveu: A library for controlling SH-Mobile VEU
  * Copyright (C) 2009 Renesas Technology Corp.
+ * Copyright (C) 2010 Renesas Electronics Corporation
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -44,7 +45,6 @@
 #define VEVTR 0xa4		/* interrupt event */
 #define VSTAR 0xb0		/* status */
 #define VBSRR 0xb4		/* reset */
-
 #define VRPBR 0xc8		/* resize passband */
 
 #define VMCR00 0x200		/* color conversion matrix coefficient 00 */
