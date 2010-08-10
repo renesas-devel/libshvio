@@ -457,20 +457,20 @@ shveu_start_locked(
 	{
 		unsigned long vswpr = 0;
 		if (src_fmt == V4L2_PIX_FMT_RGB32)
-			vswpr |= 0;
+			vswpr |= 0x4;
 		else if (src_fmt == V4L2_PIX_FMT_RGB565)
 			vswpr |= 0x6;
 		else
 			vswpr |= 0x7;
 
 		if (dst_fmt == V4L2_PIX_FMT_RGB32)
-			vswpr |= 0;
-		if (dst_fmt == V4L2_PIX_FMT_RGB565)
+			vswpr |= 0x40;
+		else if (dst_fmt == V4L2_PIX_FMT_RGB565)
 			vswpr |= 0x60;
 		else
 			vswpr |= 0x70;
 		write_reg(ump, vswpr, VSWPR);
-#if DEBUG
+#ifdef DEBUG
 		fprintf(stderr, "vswpr=0x%X\n", vswpr);
 #endif
 	}
@@ -481,21 +481,20 @@ shveu_start_locked(
 		switch (src_fmt)
 		{
 		case V4L2_PIX_FMT_RGB565:
-			vtrcr |= VTRCR_RY_SRC_RGB;
 			vtrcr |= VTRCR_SRC_FMT_RGB565;
 			break;
 		case V4L2_PIX_FMT_RGB32:
-			vtrcr |= VTRCR_RY_SRC_RGB;
 			vtrcr |= VTRCR_SRC_FMT_RGBX888;
 			break;
 		case V4L2_PIX_FMT_NV12:
-			vtrcr |= VTRCR_RY_SRC_YCBCR;
 			vtrcr |= VTRCR_SRC_FMT_YCBCR420;
 			break;
 		case V4L2_PIX_FMT_NV16:
-			vtrcr |= VTRCR_RY_SRC_YCBCR;
 			vtrcr |= VTRCR_SRC_FMT_YCBCR422;
 		}
+
+		if (is_rgb(src_fmt))
+			vtrcr |= VTRCR_RY_SRC_RGB;
 
 		switch (dst_fmt)
 		{
@@ -515,7 +514,7 @@ shveu_start_locked(
 		if (different_colorspace(src_fmt, dst_fmt))
 			vtrcr |= VTRCR_TE_BIT_SET;
 		write_reg(ump, vtrcr, VTRCR);
-#if DEBUG
+#ifdef DEBUG
 		fprintf(stderr, "vtrcr=0x%X\n", vtrcr);
 #endif
 	}
