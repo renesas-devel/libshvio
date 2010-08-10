@@ -43,7 +43,7 @@ usage (const char * progname)
 	printf ("\n");
 	printf ("If no input filename is specified, a simple image will be created.\n");
 	printf ("\nInput options\n");
-	printf ("  -c, --input-colorspace (RGB565, NV12, YCbCr420, YCbCr422)\n");
+	printf ("  -c, --input-colorspace (RGB565, RGBx888, NV12, YCbCr420, NV16, YCbCr422)\n");
 	printf ("                         Specify input colorspace\n");
 	printf ("  -s, --input-size       Set the input image size (qcif, cif, qvga, vga, d1, 720p)\n");
 	printf ("\nControl keys\n");
@@ -61,57 +61,35 @@ usage (const char * progname)
 	printf ("Please report bugs to <linux-sh@vger.kernel.org>\n");
 }
 
-void
-print_short_options (char * optstring)
-{
-	char *c;
+struct sizes_t {
+	const char *name;
+	int w;
+	int h;
+};
 
-	for (c=optstring; *c; c++) {
-		if (*c != ':') printf ("-%c ", *c);
-	}
-
-	printf ("\n");
-}
-
-#ifdef HAVE_GETOPT_LONG
-void
-print_options (struct option long_options[], char * optstring)
-{
-	int i;
-	for (i=0; long_options[i].name != NULL; i++)  {
-		printf ("--%s ", long_options[i].name);
-	}
-
-	print_short_options (optstring);
-}
-#endif
+static const struct sizes_t sizes[] = {
+	{ "QCIF", 176,  144 },
+	{ "CIF",  352,  288 },
+	{ "QVGA", 320,  240 },
+	{ "VGA",  640,  480 },
+	{ "D1",   720,  480 },
+	{ "720p", 1280, 720 },
+};
 
 static int set_size (char * arg, int * w, int * h)
 {
-	if (arg) {
-		if (!strncasecmp (arg, "qcif", 4)) {
-			*w = 176;
-			*h = 144;
-		} else if (!strncasecmp (arg, "cif", 3)) {
-			*w = 352;
-			*h = 288;
-		} else if (!strncasecmp (arg, "qvga", 4)) {
-			*w = 320;
-			*h = 240;
-		} else if (!strncasecmp (arg, "vga", 3)) {
-			*w = 640;
-			*h = 480;
-                } else if (!strncasecmp (arg, "d1", 2)) {
-                        *w = 720;
-                        *h = 480;
-		} else if (!strncasecmp (arg, "720p", 4)) {
-			*w = 1280;
-			*h = 720;
-		} else {
-			return -1;
-		}
+	int nr_sizes = sizeof(sizes) / sizeof(sizes[0]);
+	int i;
 
-		return 0;
+	if (!arg)
+		return -1;
+
+	for (i=0; i<nr_sizes; i++) {
+		if (!strncasecmp (arg, sizes[i].name, strlen(sizes[i].name))) {
+			*w = sizes[i].w;
+			*h = sizes[i].h;
+			return 0;
+		}
 	}
 
 	return -1;
@@ -119,57 +97,62 @@ static int set_size (char * arg, int * w, int * h)
 
 static const char * show_size (int w, int h)
 {
-	if (w == -1 && h == -1) {
-		return "<Unknown size>";
-	} else if (w == 176 && h == 144) {
-		return "QCIF";
-	} else if (w == 352 && h == 288) {
-		return "CIF";
-	} else if (w == 320 && h == 240) {
-		return "QVGA";
-	} else if (w == 640 && h == 480) {
-		return "VGA";
-	} else if (w == 720 && h == 480) {
-		return "D1";
-	} else if (w == 1280 && h == 720) {
-		return "720p";
+	int nr_sizes = sizeof(sizes) / sizeof(sizes[0]);
+	int i;
+
+	for (i=0; i<nr_sizes; i++) {
+		if (w == sizes[i].w && h == sizes[i].h)
+			return sizes[i].name;
 	}
 
 	return "";
 }
 
+struct extensions_t {
+	const char *ext;
+	int fmt;
+};
+
+static const struct extensions_t exts[] = {
+	{ "RGB565",   V4L2_PIX_FMT_RGB565 },
+	{ "rgb",      V4L2_PIX_FMT_RGB565 },
+	{ "RGBx888",  V4L2_PIX_FMT_RGB32 },
+	{ "x888",     V4L2_PIX_FMT_RGB32 },
+	{ "YCbCr420", V4L2_PIX_FMT_NV12 },
+	{ "420",      V4L2_PIX_FMT_NV12 },
+	{ "yuv",      V4L2_PIX_FMT_NV12 },
+	{ "NV12",     V4L2_PIX_FMT_NV12 },
+	{ "YCbCr422", V4L2_PIX_FMT_NV16 },
+	{ "422",      V4L2_PIX_FMT_NV16 },
+	{ "NV16",     V4L2_PIX_FMT_NV16 },
+};
+
 static int set_colorspace (char * arg, int * c)
 {
-	if (arg) {
-		if (!strncasecmp (arg, "rgb565", 6) ||
-		    !strncasecmp (arg, "rgb", 3)) {
-			*c = V4L2_PIX_FMT_RGB565;
-		} else if (!strncasecmp (arg, "YCbCr420", 8) ||
-			   !strncasecmp (arg, "420", 3) ||
-			   !strncasecmp (arg, "NV12", 4)) {
-			*c = V4L2_PIX_FMT_NV12;
-		} else if (!strncasecmp (arg, "YCbCr422", 8) ||
-			   !strncasecmp (arg, "422", 3)) {
-			*c = V4L2_PIX_FMT_NV16;
-		} else {
-			return -1;
-		}
+	int nr_exts = sizeof(exts) / sizeof(exts[0]);
+	int i;
 
-		return 0;
+	if (!arg)
+		return -1;
+
+	for (i=0; i<nr_exts; i++) {
+		if (!strncasecmp (arg, exts[i].ext, strlen(exts[i].ext))) {
+			*c = exts[i].fmt;
+			return 0;
+		}
 	}
 
 	return -1;
 }
 
-static char * show_colorspace (int c)
+static const char * show_colorspace (int c)
 {
-	switch (c) {
-	case V4L2_PIX_FMT_RGB565:
-		return "RGB565";
-	case V4L2_PIX_FMT_NV12:
-		return "YCbCr420";
-	case V4L2_PIX_FMT_NV16:
-		return "YCbCr422";
+	int nr_exts = sizeof(exts) / sizeof(exts[0]);
+	int i;
+
+	for (i=0; i<nr_exts; i++) {
+		if (c == exts[i].fmt)
+			return exts[i].ext;
 	}
 
 	return "<Unknown colorspace>";
@@ -195,6 +178,10 @@ static off_t imgsize (int colorspace, int w, int h)
 	int n=0, d=1;
 
 	switch (colorspace) {
+	case V4L2_PIX_FMT_RGB32:
+		/* 4 bytes per pixel */
+		n=4; d=1;
+		break;
 	case V4L2_PIX_FMT_RGB565:
 	case V4L2_PIX_FMT_NV16:
 		/* 2 bytes per pixel */
@@ -214,7 +201,6 @@ static off_t imgsize (int colorspace, int w, int h)
 static int guess_colorspace (char * filename, int * c)
 {
 	char * ext;
-	off_t size;
 
 	if (filename == NULL || !strcmp (filename, "-"))
 		return -1;
@@ -226,70 +212,33 @@ static int guess_colorspace (char * filename, int * c)
 	ext = strrchr (filename, '.');
 	if (ext == NULL) return -1;
 
-	if (!strncasecmp (ext, ".yuv", 4)) {
-		*c = V4L2_PIX_FMT_NV12;
-		return 0;
-	} else if (!strncasecmp (ext, ".rgb", 4)) {
-		*c = V4L2_PIX_FMT_RGB565;
-		return 0;
-	}
-
-	return -1;
+	return set_colorspace(ext+1, c);
 }
 
 static int guess_size (char * filename, int colorspace, int * w, int * h)
 {
 	off_t size;
-	int n=0, d=1;
-
-	/* If the size is already set (eg. explicitly by user args)
-	 * then don't try to guess */
-	if (*w != -1 && *h != -1) return -1;
 
 	if ((size = filesize (filename)) == -1) {
 		return -1;
 	}
 
-	switch (colorspace) {
-	case V4L2_PIX_FMT_RGB565:
-	case V4L2_PIX_FMT_NV16:
-		/* 2 bytes per pixel */
-		n=2; d=1;
-	       	break;
-       case V4L2_PIX_FMT_NV12:
-		/* 3/2 bytes per pixel */
-		n=3; d=2;
-		break;
-       default:
-		return -1;
-	}
-
 	if (*w==-1 && *h==-1) {
 		/* Image size unspecified */
-		if (size == 176*144*n/d) {
-			*w = 176; *h = 144;
-		} else if (size == 352*288*n/d) {
-			*w = 352; *h = 288;
-		} else if (size == 320*240*n/d) {
-			*w = 320; *h = 240;
-		} else if (size == 640*480*n/d) {
-			*w = 640; *h = 480;
-		} else if (size == 720*480*n/d) {
-			*w = 720; *h = 480;
-		} else if (size == 1280*720*n/d) {
-			*w = 1280; *h = 720;
-		} else {
-			return -1;
+		int nr_sizes = sizeof(sizes) / sizeof(sizes[0]);
+		int i;
+
+		for (i=0; i<nr_sizes; i++) {
+
+			if (size == imgsize(colorspace, sizes[i].w, sizes[i].h)) {
+				*w = sizes[i].w;
+				*h = sizes[i].h;
+				return 0;
+			}
 		}
-	} else if (*h != -1) {
-		/* Height has been specified */
-		*w = size * d / (*h * n);
-	} else if (*w != -1) {
-		/* Width has been specified */
-		*h = size * d / (*w * n);
 	}
 
-	return 0;
+	return -1;
 }
 
 
@@ -423,15 +372,6 @@ int main (int argc, char * argv[])
 #endif
 
 	progname = argv[0];
-
-	if ((argc == 2) && !strncmp (argv[1], "-?", 2)) {
-#ifdef HAVE_GETOPT_LONG
-		print_options (long_options, optstring);
-#else
-		print_short_options (optstring);
-#endif
-		exit (0);
-	}
 
 	while (1) {
 #ifdef HAVE_GETOPT_LONG
