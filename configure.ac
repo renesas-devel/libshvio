@@ -24,7 +24,7 @@ AC_CONFIG_SRCDIR([src/libshveu/veu.c])
 
 AC_PREREQ(2.53)
 
-AM_INIT_AUTOMAKE(libshveu, 1.4.1)
+AM_INIT_AUTOMAKE(libshveu, 1.4.2)
 AM_CONFIG_HEADER(config.h)
 
 ################################################################################

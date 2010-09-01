@@ -1,0 +1,25 @@
+libshveu Release 1.4.2
+======================
+
+libshveu: A library for controlling SH-Mobile VEU
+
+The source archive, and more information about the library are available from:
+
+	http://oss.renesas.com/modules/document/?libshveu
+
+New in this release
+-------------------
+
+This release fixes building the tools.
+
+Changes
+-------
+
+This release includes the following changes since version 1.4.1:
+
+Phil Edworthy (1):
+      tools: Add missing header file
+
+ src/tools/Makefile.am |    2 ++
+ 1 files changed, 2 insertions(+), 0 deletions(-)
+
