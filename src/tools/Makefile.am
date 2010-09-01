@@ -12,6 +12,8 @@ endif
 
 bin_PROGRAMS = shveu-convert $(ncurses_programs)
 
+noinst_HEADERS = display.h
+
 shveu_convert_SOURCES = shveu-convert.c
 shveu_convert_LDADD = $(SHVEU_LIBS) $(UIOMUX_LIBS)
 
