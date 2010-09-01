@@ -1,6 +1,7 @@
 ################################################################################
 # libshveu: A library for controlling SH-Mobile VEU hardware                   #
 # Copyright (C) 2009 Renesas Technology Corp.                                  #
+# Copyright (C) 2010 Renesas Electronics Corporation                           #
 #                                                                              #
 # This library is free software; you can redistribute it and/or                #
 # modify it under the terms of the GNU Library General Public                  #
@@ -23,7 +24,7 @@ AC_CONFIG_SRCDIR([src/libshveu/veu.c])
 
 AC_PREREQ(2.53)
 
-AM_INIT_AUTOMAKE(libshveu, 1.4.0)
+AM_INIT_AUTOMAKE(libshveu, 1.4.1)
 AM_CONFIG_HEADER(config.h)
 
 ################################################################################

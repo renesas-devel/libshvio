@@ -1,0 +1,42 @@
+libshveu Release 1.4.1
+======================
+
+libshveu: A library for controlling SH-Mobile VEU
+
+The source archive, and more information about the library are available from:
+
+	http://oss.renesas.com/modules/document/?libshveu
+
+New in this release
+-------------------
+
+This release contains a bug fix for the RGB32 format and formatting changes.
+
+Changes
+-------
+
+This release includes the following changes since version 1.4.0:
+
+Phil Edworthy (5):
+	Fix RGB32 longword swapping
+	tools: Add RGB32 support & simplify size/colorspace detection
+	docs: Cleanup
+	Formatting, headers, general tidy up
+	File name changed
+
+ README                         |   37 ++-
+ configure.ac                   |    4 +-
+ include/shveu/shveu.h          |   22 ++-
+ include/shveu/veu_colorspace.h |   48 +++-
+ src/libshveu/Android.mk        |    2 +-
+ src/libshveu/Makefile.am       |    2 +-
+ src/libshveu/shveu_regs.h      |    5 +-
+ src/libshveu/veu.c             |  659 ++++++++++++++++++++++++++++++++++++++++
+ src/libshveu/veu_colorspace.c  |  650 ---------------------------------------
+ src/tools/display.c            |    2 +-
+ src/tools/shveu-convert.c      |  518 ++++++++++++++-----------------
+ src/tools/shveu-display.c      |  234 ++++++---------
+ 12 files changed, 1070 insertions(+), 1113 deletions(-)
+ create mode 100644 src/libshveu/veu.c
+ delete mode 100644 src/libshveu/veu_colorspace.c
+
