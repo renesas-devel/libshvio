@@ -117,7 +117,7 @@ added in 2.6.27.
 The following kernel boot option reserves physically contiguous memory for VEU
 use:
 
-    memchunk.veu=4m
+    memchunk.veu0=4m
 
 License
 -------
