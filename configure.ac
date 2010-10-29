@@ -57,9 +57,6 @@ AC_PROG_LIBTOOL
 
 AC_C_CONST
 
-dnl Add parameters for aclocal
-AC_SUBST(ACLOCAL_AMFLAGS, "-I m4")
-
 # Checks for header files.
 AC_HEADER_STDC
 AC_CHECK_HEADERS([fcntl.h inttypes.h stdlib.h string.h unistd.h])
@@ -246,13 +243,6 @@ AC_MSG_ERROR([
 
 else
 
-AS_AC_EXPAND(LIBDIR, ${libdir})
-AS_AC_EXPAND(INCLUDEDIR, ${includedir})
-AS_AC_EXPAND(BINDIR, ${bindir})
-AS_AC_EXPAND(DOCDIR, ${datadir}/doc)
-
-AC_SUBST(BINDIR)
-
 AC_SUBST(SHLIB_VERSION_ARG)
 AC_SUBST(SHARED_VERSION_INFO)
 
@@ -281,12 +271,6 @@ AC_MSG_RESULT([
   Tools:
 
     shveu-convert ${ncurses_programs}
-
-  Installation paths:
-
-    libshveu: .................... ${LIBDIR}
-    C header files: .............. ${INCLUDEDIR}/shveu
-    Documentation: ............... ${DOCDIR}/$PACKAGE
 
   Building:
 
