@@ -199,6 +199,8 @@ crop_offset(
 
 	if (fmt == V4L2_PIX_FMT_RGB565) {
 		*py += 2 * offset;
+	} else if (fmt == V4L2_PIX_FMT_BGR24) {
+		*py += 3 * offset;
 	} else if (fmt == V4L2_PIX_FMT_RGB32) {
 		*py += 4 * offset;
 	} else if (fmt == V4L2_PIX_FMT_NV12) {
@@ -216,6 +218,7 @@ static int format_supported(int fmt)
 	if ((fmt == V4L2_PIX_FMT_NV12) ||
 	    (fmt == V4L2_PIX_FMT_NV16) ||
 	    (fmt == V4L2_PIX_FMT_RGB565) ||
+	    (fmt == V4L2_PIX_FMT_BGR24) ||
 	    (fmt == V4L2_PIX_FMT_RGB32))
 		return 1;
 	return 0;
@@ -230,7 +233,7 @@ static int is_ycbcr(int fmt)
 
 static int is_rgb(int fmt)
 {
-	if ((fmt == V4L2_PIX_FMT_RGB565) || (fmt == V4L2_PIX_FMT_RGB32))
+	if ((fmt == V4L2_PIX_FMT_RGB565) || (fmt == V4L2_PIX_FMT_BGR24) || (fmt == V4L2_PIX_FMT_RGB32))
 		return 1;
 	return 0;
 }
@@ -420,6 +423,8 @@ shveu_start_locked(
 
 	if (src_fmt == V4L2_PIX_FMT_RGB565)
 		src_pitch *= 2;
+	if (src_fmt == V4L2_PIX_FMT_BGR24)
+		src_pitch *= 3;
 	if (src_fmt == V4L2_PIX_FMT_RGB32)
 		src_pitch *= 4;
 	write_reg(ump, src_pitch, VESWR);
@@ -449,6 +454,8 @@ shveu_start_locked(
 
 	if (dst_fmt == V4L2_PIX_FMT_RGB565)
 		dst_pitch *= 2;
+	if (dst_fmt == V4L2_PIX_FMT_BGR24)
+		dst_pitch *= 3;
 	if (dst_fmt == V4L2_PIX_FMT_RGB32)
 		dst_pitch *= 4;
 	write_reg(ump, dst_pitch, VEDWR);
@@ -483,6 +490,9 @@ shveu_start_locked(
 		case V4L2_PIX_FMT_RGB565:
 			vtrcr |= VTRCR_SRC_FMT_RGB565;
 			break;
+		case V4L2_PIX_FMT_BGR24:
+			vtrcr |= VTRCR_SRC_FMT_BGR888;
+			break;
 		case V4L2_PIX_FMT_RGB32:
 			vtrcr |= VTRCR_SRC_FMT_RGBX888;
 			break;
@@ -500,6 +510,9 @@ shveu_start_locked(
 		{
 		case V4L2_PIX_FMT_RGB565:
 			vtrcr |= VTRCR_DST_FMT_RGB565;
+			break;
+		case V4L2_PIX_FMT_BGR24:
+			vtrcr |= VTRCR_DST_FMT_BGR888;
 			break;
 		case V4L2_PIX_FMT_RGB32:
 			vtrcr |= VTRCR_DST_FMT_RGBX888;
