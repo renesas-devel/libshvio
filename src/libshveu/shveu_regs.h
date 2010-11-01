@@ -64,13 +64,13 @@
 #define VTRCR_DST_FMT_YCBCR444 (2 << 22)
 #define VTRCR_DST_FMT_RGB565   (6 << 16)
 #define VTRCR_DST_FMT_RGBX888  (19 << 16)
-#define VTRCR_DST_FMT_BGR888   (21 << 16)	/* Packed 24-bit BGR */
+#define VTRCR_DST_FMT_RGB888   (21 << 16)	/* Packed 24-bit RGB */
 #define VTRCR_SRC_FMT_YCBCR420 (0 << 14)
 #define VTRCR_SRC_FMT_YCBCR422 (1 << 14)
 #define VTRCR_SRC_FMT_YCBCR444 (2 << 14)
 #define VTRCR_SRC_FMT_RGB565   (3 << 8)
 #define VTRCR_SRC_FMT_RGBX888  (0 << 8)
-#define VTRCR_SRC_FMT_BGR888   (2 << 8)		/* Packed 24-bit BGR */
+#define VTRCR_SRC_FMT_RGB888   (2 << 8)		/* Packed 24-bit RGB */
 #define VTRCR_DITH             (1 << 4)
 #define VTRCR_BT601            (0 << 3)
 #define VTRCR_BT709            (1 << 3)

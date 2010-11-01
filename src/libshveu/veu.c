@@ -199,7 +199,7 @@ crop_offset(
 
 	if (fmt == V4L2_PIX_FMT_RGB565) {
 		*py += 2 * offset;
-	} else if (fmt == V4L2_PIX_FMT_BGR24) {
+	} else if (fmt == V4L2_PIX_FMT_RGB24) {
 		*py += 3 * offset;
 	} else if (fmt == V4L2_PIX_FMT_RGB32) {
 		*py += 4 * offset;
@@ -218,9 +218,10 @@ static int format_supported(int fmt)
 	if ((fmt == V4L2_PIX_FMT_NV12) ||
 	    (fmt == V4L2_PIX_FMT_NV16) ||
 	    (fmt == V4L2_PIX_FMT_RGB565) ||
-	    (fmt == V4L2_PIX_FMT_BGR24) ||
+	    (fmt == V4L2_PIX_FMT_RGB24) ||
 	    (fmt == V4L2_PIX_FMT_RGB32))
 		return 1;
+
 	return 0;
 }
 
@@ -233,7 +234,7 @@ static int is_ycbcr(int fmt)
 
 static int is_rgb(int fmt)
 {
-	if ((fmt == V4L2_PIX_FMT_RGB565) || (fmt == V4L2_PIX_FMT_BGR24) || (fmt == V4L2_PIX_FMT_RGB32))
+	if ((fmt == V4L2_PIX_FMT_RGB565) || (fmt == V4L2_PIX_FMT_RGB24) || (fmt == V4L2_PIX_FMT_RGB32))
 		return 1;
 	return 0;
 }
@@ -423,7 +424,7 @@ shveu_start_locked(
 
 	if (src_fmt == V4L2_PIX_FMT_RGB565)
 		src_pitch *= 2;
-	if (src_fmt == V4L2_PIX_FMT_BGR24)
+	if (src_fmt == V4L2_PIX_FMT_RGB24)
 		src_pitch *= 3;
 	if (src_fmt == V4L2_PIX_FMT_RGB32)
 		src_pitch *= 4;
@@ -454,7 +455,7 @@ shveu_start_locked(
 
 	if (dst_fmt == V4L2_PIX_FMT_RGB565)
 		dst_pitch *= 2;
-	if (dst_fmt == V4L2_PIX_FMT_BGR24)
+	if (dst_fmt == V4L2_PIX_FMT_RGB24)
 		dst_pitch *= 3;
 	if (dst_fmt == V4L2_PIX_FMT_RGB32)
 		dst_pitch *= 4;
@@ -463,6 +464,8 @@ shveu_start_locked(
 	/* byte/word swapping */
 	{
 		unsigned long vswpr = 0;
+
+#ifdef __LITTLE_ENDIAN__
 		if (src_fmt == V4L2_PIX_FMT_RGB32)
 			vswpr |= 0x4;
 		else if (src_fmt == V4L2_PIX_FMT_RGB565)
@@ -476,6 +479,7 @@ shveu_start_locked(
 			vswpr |= 0x60;
 		else
 			vswpr |= 0x70;
+#endif
 		write_reg(ump, vswpr, VSWPR);
 #ifdef DEBUG
 		fprintf(stderr, "vswpr=0x%X\n", vswpr);
@@ -490,8 +494,8 @@ shveu_start_locked(
 		case V4L2_PIX_FMT_RGB565:
 			vtrcr |= VTRCR_SRC_FMT_RGB565;
 			break;
-		case V4L2_PIX_FMT_BGR24:
-			vtrcr |= VTRCR_SRC_FMT_BGR888;
+		case V4L2_PIX_FMT_RGB24:
+			vtrcr |= VTRCR_SRC_FMT_RGB888;
 			break;
 		case V4L2_PIX_FMT_RGB32:
 			vtrcr |= VTRCR_SRC_FMT_RGBX888;
@@ -511,8 +515,8 @@ shveu_start_locked(
 		case V4L2_PIX_FMT_RGB565:
 			vtrcr |= VTRCR_DST_FMT_RGB565;
 			break;
-		case V4L2_PIX_FMT_BGR24:
-			vtrcr |= VTRCR_DST_FMT_BGR888;
+		case V4L2_PIX_FMT_RGB24:
+			vtrcr |= VTRCR_DST_FMT_RGB888;
 			break;
 		case V4L2_PIX_FMT_RGB32:
 			vtrcr |= VTRCR_DST_FMT_RGBX888;

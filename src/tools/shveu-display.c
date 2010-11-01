@@ -42,7 +42,7 @@ usage (const char * progname)
 	printf ("\n");
 	printf ("If no input filename is specified, a simple image will be created.\n");
 	printf ("\nInput options\n");
-	printf ("  -c, --input-colorspace (RGB565, BGR888, RGBx888, NV12, YCbCr420, NV16, YCbCr422)\n");
+	printf ("  -c, --input-colorspace (RGB565, RGB888, RGBx888, NV12, YCbCr420, NV16, YCbCr422)\n");
 	printf ("                         Specify input colorspace\n");
 	printf ("  -s, --input-size       Set the input image size (qcif, cif, qvga, vga, d1, 720p)\n");
 	printf ("\nControl keys\n");
@@ -56,7 +56,7 @@ usage (const char * progname)
 	printf ("\nFile extensions are interpreted as follows unless otherwise specified:\n");
 	printf ("  .yuv    YCbCr420\n");
 	printf ("  .rgb    RGB565\n");
-	printf ("  .888    BGR888\n");
+	printf ("  .888    RGB888\n");
 	printf ("\n");
 	printf ("Please report bugs to <linux-sh@vger.kernel.org>\n");
 }
@@ -116,8 +116,8 @@ struct extensions_t {
 static const struct extensions_t exts[] = {
 	{ "RGB565",   V4L2_PIX_FMT_RGB565 },
 	{ "rgb",      V4L2_PIX_FMT_RGB565 },
-	{ "BGR888",   V4L2_PIX_FMT_BGR24 },
-	{ "888",      V4L2_PIX_FMT_BGR24 },
+	{ "RGB888",   V4L2_PIX_FMT_RGB24 },
+	{ "888",      V4L2_PIX_FMT_RGB24 },
 	{ "RGBx888",  V4L2_PIX_FMT_RGB32 },
 	{ "x888",     V4L2_PIX_FMT_RGB32 },
 	{ "YCbCr420", V4L2_PIX_FMT_NV12 },
@@ -184,7 +184,7 @@ static off_t imgsize (int colorspace, int w, int h)
 		/* 4 bytes per pixel */
 		n=4; d=1;
 		break;
-	case V4L2_PIX_FMT_BGR24:
+	case V4L2_PIX_FMT_RGB24:
 		/* 3 bytes per pixel */
 		n=3; d=1;
 		break;
