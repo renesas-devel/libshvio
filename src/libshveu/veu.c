@@ -148,30 +148,30 @@ static void set_scale(struct uio_map *ump, int vertical,
 #ifdef KERNEL2_6_33
 	if (sh_veu_is_veu3f(ump)) {
 #endif
-	    if (size_out >= size_in)
-	        vb = 64;
-	    else {
-	        if ((mant >= 8) && (mant < 16))
-	            value = 4;
-	        else if ((mant >= 4) && (mant < 8))
-	            value = 2;
-	        else
-	            value = 1;
+		if (size_out >= size_in)
+			vb = 64;
+		else {
+			if ((mant >= 8) && (mant < 16))
+				value = 4;
+			else if ((mant >= 4) && (mant < 8))
+				value = 2;
+			else
+				value = 1;
 
-	        vb = 64 * 4096 * value;
-	        vb /= 4096 * mant + frac;
-	    }
+			vb = 64 * 4096 * value;
+			vb /= 4096 * mant + frac;
+		}
 
-	    /* set resize passband register */
-	    value = read_reg(ump, VRPBR);
-	    if (vertical) {
-	        value &= ~0xffff0000;
+		/* set resize passband register */
+		value = read_reg(ump, VRPBR);
+		if (vertical) {
+			value &= ~0xffff0000;
 		value |= vb << 16;
-	    } else {
-	        value &= ~0xffff;
-	        value |= vb;
-	    }
-	    write_reg(ump, value, VRPBR);
+		} else {
+			value &= ~0xffff;
+			value |= vb;
+		}
+		write_reg(ump, value, VRPBR);
 #ifdef KERNEL2_6_33
 	}
 #endif
@@ -549,13 +549,13 @@ shveu_start_locked(
 
 	write_reg(ump, 0, VRFCR);
 	write_reg(ump, 0, VRFSR);
-        if ((vdst_width*vdst_height) > (src_width*src_height)) {
-                set_scale(ump, 0, src_width,  vdst_width, 1, dst_width);
-                set_scale(ump, 1, src_height, vdst_height, 1, dst_height);
-        } else {
-                set_scale(ump, 0, src_width,  vdst_width, 0, dst_width);
-                set_scale(ump, 1, src_height, vdst_height, 0, dst_height);
-        }
+	if ((vdst_width*vdst_height) > (src_width*src_height)) {
+		set_scale(ump, 0, src_width,  vdst_width, 1, dst_width);
+		set_scale(ump, 1, src_height, vdst_height, 1, dst_height);
+	} else {
+		set_scale(ump, 0, src_width,  vdst_width, 0, dst_width);
+		set_scale(ump, 1, src_height, vdst_height, 0, dst_height);
+	}
 
 	if (rotate) {
 		write_reg(ump, 1, VFMCR);
