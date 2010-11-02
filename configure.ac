@@ -139,7 +139,7 @@ if test "x$HAVE_NCURSES" = "xmaybe" ; then
   fi
 fi
 if test "x$HAVE_NCURSES" = "xyes" ; then
-  ncurses_programs=shveu-display
+  AC_DEFINE(HAVE_NCURSES, [], [Define to 1 if ncurses is available])
 fi
 AM_CONDITIONAL(HAVE_NCURSES, [test "x$HAVE_NCURSES" = "xyes"])
 

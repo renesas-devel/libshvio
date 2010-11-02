@@ -19,10 +19,12 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#ifdef HAVE_NCURSES
 #ifdef HAVE_NCURSES_SUBDIR
 #include <ncurses/ncurses.h>
 #else
 #include <ncurses.h>
+#endif
 #endif
 #include <uiomux/uiomux.h>
 #include "shveu/shveu.h"
@@ -504,11 +506,13 @@ int main (int argc, char * argv[])
 	}
 
 
+#ifdef HAVE_NCURSES
 	/* ncurses init */
 	initscr();
 	noecho();
 	cbreak();
 	keypad(stdscr, TRUE);
+#endif
 
 	while (run) {
 
@@ -527,6 +531,7 @@ int main (int argc, char * argv[])
 
 		scale (veu, display, scale_factor, src_py, src_pc, input_w, input_h, x, y, input_colorspace);
 
+#ifdef HAVE_NCURSES
 		key = getch();
 		switch (key)
 		{
@@ -560,13 +565,16 @@ int main (int argc, char * argv[])
 			run = 0;
 			break;
 		}
+#endif
 	}
 
 
+#ifdef HAVE_NCURSES
 	/* ncurses close */
 	clrtoeol();
 	refresh();
 	endwin();
+#endif
 
 	display_close(display);
 	shveu_close(veu);
