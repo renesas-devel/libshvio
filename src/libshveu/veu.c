@@ -182,36 +182,42 @@ set_clip(struct uio_map *ump, int vertical, int clip_out)
 
 static void
 limit_selection(
-	struct shveu_surface *surface,
-	struct shveu_rect *sel)
+	const struct shveu_surface *surface,
+	const struct shveu_rect *sel,
+	struct shveu_rect *new_sel)
 {
-	if (sel->x < 0) sel->x = 0;
-	if (sel->y < 0) sel->y = 0;
-	if (sel->x > surface->w) sel->x = surface->w;
-	if (sel->y > surface->h) sel->y = surface->h;
+	new_sel->x = sel->x;
+	new_sel->y = sel->y;
+	new_sel->w = sel->w;
+	new_sel->h = sel->h;
 
-	if ((sel->x + sel->w) > surface->w)
-		sel->w = surface->w - sel->x;
-	if ((sel->y + sel->h) > surface->h)
-		sel->h = surface->h - sel->y;
+	if (new_sel->x < 0) new_sel->x = 0;
+	if (new_sel->y < 0) new_sel->y = 0;
+	if (new_sel->x > surface->w) new_sel->x = surface->w;
+	if (new_sel->y > surface->h) new_sel->y = surface->h;
+
+	if ((new_sel->x + new_sel->w) > surface->w)
+		new_sel->w = surface->w - new_sel->x;
+	if ((new_sel->y + new_sel->h) > surface->h)
+		new_sel->h = surface->h - new_sel->y;
 }
 
 static unsigned long
 offset_py(
-	struct shveu_surface *surface,
-	struct shveu_rect *sel)
+	const struct shveu_surface *surface,
+	const struct shveu_rect *sel)
 {
-	struct format_info *info = &fmts[surface->format];
+	const struct format_info *info = &fmts[surface->format];
 	int offset = (sel->y * surface->w) + sel->x;
 	return surface->py + info->y_bpp * offset;
 }
 
 static unsigned long
 offset_pc(
-	struct shveu_surface *surface,
-	struct shveu_rect *sel)
+	const struct shveu_surface *surface,
+	const struct shveu_rect *sel)
 {
-	struct format_info *info = &fmts[surface->format];
+	const struct format_info *info = &fmts[surface->format];
 	int offset = (sel->y * surface->w) + sel->x;
 	return surface->pc + (info->c_bpp_n * offset) / info->c_bpp_d;
 }
@@ -283,10 +289,10 @@ void shveu_close(SHVEU *veu)
 int
 shveu_setup(
 	SHVEU *veu,
-	struct shveu_surface *src_surface,
-	struct shveu_surface *dst_surface,
-	struct shveu_rect *src_selection,
-	struct shveu_rect *dst_selection,
+	const struct shveu_surface *src_surface,
+	const struct shveu_surface *dst_surface,
+	const struct shveu_rect *src_selection,
+	const struct shveu_rect *dst_selection,
 	shveu_rotation_t rotate)
 {
 	struct uio_map *ump = &veu->uio_mmio;
@@ -307,6 +313,9 @@ shveu_setup(
 	int src_w, src_h;
 	int dst_w, dst_h;
 	unsigned long py, pc;
+	struct shveu_rect new_src_selection;
+	struct shveu_rect new_dst_selection;
+
 
 	/* Use default selections if not provided */
 	if (!src_selection)
@@ -349,13 +358,13 @@ shveu_setup(
 	write_reg(ump, 0, VBSSR);
 
 	/* source */
-	limit_selection(src_surface, src_selection);
-	py = offset_py(src_surface, src_selection);
-	pc = offset_pc(src_surface, src_selection);
+	limit_selection(src_surface, src_selection, &new_src_selection);
+	py = offset_py(src_surface, &new_src_selection);
+	pc = offset_pc(src_surface, &new_src_selection);
 	write_reg(ump, py, VSAYR);
 	write_reg(ump, pc, VSACR);
 
-	write_reg(ump, (src_selection->h << 16) | src_selection->w, VESSR);
+	write_reg(ump, (new_src_selection.h << 16) | new_src_selection.w, VESSR);
 
 	/* memory pitch in bytes */
 	temp = src_surface->w * fmts[src_surface->format].y_bpp;
@@ -363,13 +372,13 @@ shveu_setup(
 
 
 	/* destination */
-	limit_selection(dst_surface, dst_selection);
-	py = offset_py(dst_surface, dst_selection);
-	pc = offset_pc(dst_surface, dst_selection);
+	limit_selection(dst_surface, dst_selection, &new_dst_selection);
+	py = offset_py(dst_surface, &new_dst_selection);
+	pc = offset_pc(dst_surface, &new_dst_selection);
 
 	if (rotate) {
-		int src_vblk  = (src_selection->h+15)/16;
-		int src_sidev = (src_selection->h+15)%16 + 1;
+		int src_vblk  = (new_src_selection.h+15)/16;
+		int src_sidev = (new_src_selection.h+15)%16 + 1;
 		int dst_density = fmts[dst_surface->format].y_bpp;
 		int offset;
 
@@ -417,8 +426,8 @@ shveu_setup(
 
 	/* Clipping */
 	write_reg(ump, 0, VRFSR);
-	set_clip(ump, 0, dst_selection->w);
-	set_clip(ump, 1, dst_selection->h);
+	set_clip(ump, 0, new_dst_selection.w);
+	set_clip(ump, 1, new_dst_selection.h);
 
 	/* Scaling - based on selections before cropping */
 	write_reg(ump, 0, VRFCR);
@@ -512,8 +521,8 @@ shveu_wait(SHVEU *veu)
 int
 shveu_resize(
 	SHVEU *veu,
-	struct shveu_surface *src_surface,
-	struct shveu_surface *dst_surface)
+	const struct shveu_surface *src_surface,
+	const struct shveu_surface *dst_surface)
 {
 	int ret;
 
@@ -531,8 +540,8 @@ shveu_resize(
 int
 shveu_rotate(
 	SHVEU *veu,
-	struct shveu_surface *src_surface,
-	struct shveu_surface *dst_surface,
+	const struct shveu_surface *src_surface,
+	const struct shveu_surface *dst_surface,
 	shveu_rotation_t rotate)
 {
 	int ret;

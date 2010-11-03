@@ -79,10 +79,10 @@ struct shveu_surface {
 int
 shveu_setup(
 	SHVEU *veu,
-	struct shveu_surface *src_surface,
-	struct shveu_surface *dst_surface,
-	struct shveu_rect *src_selection,
-	struct shveu_rect *dst_selection,
+	const struct shveu_surface *src_surface,
+	const struct shveu_surface *dst_surface,
+	const struct shveu_rect *src_selection,
+	const struct shveu_rect *dst_selection,
 	shveu_rotation_t rotate);
 
 
@@ -143,8 +143,8 @@ shveu_wait(SHVEU *veu);
 int
 shveu_resize(
 	SHVEU *veu,
-	struct shveu_surface *src_surface,
-	struct shveu_surface *dst_surface);
+	const struct shveu_surface *src_surface,
+	const struct shveu_surface *dst_surface);
 
 /** Perform rotate between YCbCr & RGB surfaces
  * This operates on entire surfaces and blocks until completion.
@@ -159,8 +159,8 @@ shveu_resize(
 int
 shveu_rotate(
 	SHVEU *veu,
-	struct shveu_surface *src_surface,
-	struct shveu_surface *dst_surface,
+	const struct shveu_surface *src_surface,
+	const struct shveu_surface *dst_surface,
 	shveu_rotation_t rotate);
 
 #endif				/* __VEU_COLORSPACE_H__ */
