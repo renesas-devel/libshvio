@@ -313,8 +313,25 @@ static void scale(
 		&dst_selection,
 		SHVEU_NO_ROT);
 
+#ifdef BUNDLE
+	{
+		int end = 0;
+		int nr_lines = 16;
+
+		while (end == 0) {
+			shveu_set_src(veu, py, pc);
+			shveu_set_dst(veu, bb_phys, 0);
+			py += nr_lines * w * 1;
+			pc += nr_lines * w / 2;
+			bb_phys += nr_lines * lcd_w * 2;
+			shveu_start_bundle(veu, nr_lines);
+			end = shveu_wait(veu);
+		}
+	}
+#else
 	shveu_start(veu);
 	shveu_wait(veu);
+#endif
 
 	display_flip(display);
 }
