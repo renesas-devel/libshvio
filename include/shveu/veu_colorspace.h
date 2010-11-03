@@ -20,14 +20,12 @@
 
 /** \file
  * Image/Video processing: Scale, rotate, crop, color conversion
- * Note: When using V4L2_PIX_FMT_RGB32 format, the data it treated as XRGB888,
+ * Note: When using SH_RGB32 format, the data it treated as XRGB888,
  * i.e. the most significant byte is ignored.
  */
 
 #ifndef __VEU_COLORSPACE_H__
 #define __VEU_COLORSPACE_H__
-
-#include <linux/videodev2.h>	/* For pixel formats */
 
 
 /** Rotation */
@@ -36,53 +34,62 @@ typedef enum {
 	SHVEU_ROT_90,	/**< Rotate 90 degrees clockwise */
 } shveu_rotation_t;
 
+/** Surface formats */
+typedef enum {
+	SH_NV12,
+	SH_NV16,
+	SH_RGB565,
+	SH_RGB24,
+	SH_RGB32,
+	SH_UNKNOWN,
+} shveu_format_t;
+
+
+/** Bounding rectange */
+struct shveu_rect {
+	int x;           	/**< Offset from left in pixels */
+	int y;           	/**< Offset from top in pixels */
+	int w;           	/**< Width of surface in pixels */
+	int h;           	/**< Height of surface in pixels */
+};
+
+/** Surface */
+struct shveu_surface {
+	shveu_format_t format; 	/**< Surface format */
+	int w;           	/**< Width of surface in pixels */
+	int h;           	/**< Height of surface in pixels */
+	unsigned long py;	/**< Address of Y or RGB plane */
+	unsigned long pc;	/**< Address of CbCr plane (ignored for RGB) */
+};
+
 /** Setup a (scale|rotate) & crop between YCbCr & RGB surfaces
+ * The scaling factor is calculated from the selection sizes. Therefore, if
+ * you wish to crop the output to part of the output surface, you must also
+ * change the input selection.
+ *
  * \param veu VEU handle
- * \param src_py Physical address of Y or RGB plane of source image
- * \param src_pc Physical address of CbCr plane of source image (ignored for RGB)
- * \param src_width Width in pixels of source image
- * \param src_height Height in pixels of source image
- * \param src_pitch Line pitch of source image
- * \param src_fmt Format of source image. One of:
- *		V4L2_PIX_FMT_NV12
- *		V4L2_PIX_FMT_NV16
- *		V4L2_PIX_FMT_RGB565
- *		V4L2_PIX_FMT_RGB32
- * \param dst_py Physical address of Y or RGB plane of destination image
- * \param dst_pc Physical address of CbCr plane of destination image (ignored for RGB)
- * \param dst_width Width in pixels of destination image
- * \param dst_height Height in pixels of destination image
- * \param dst_pitch Line pitch of destination image
- * \param dst_fmt Format of destination image. One of:
- *		V4L2_PIX_FMT_NV12
- *		V4L2_PIX_FMT_NV16
- *		V4L2_PIX_FMT_RGB565
- *		V4L2_PIX_FMT_RGB32
+ * \param src_surface Input surface
+ * \param dst_surface Output surface
+ * \param src_selection Input specification (NULL indicates whole surface)
+ * \param dst_selection Output specification (NULL indicates whole surface)
  * \param rotate Rotation to apply
  * \retval 0 Success
  * \retval -1 Error: Attempt to perform simultaneous scaling and rotation
  */
 int
 shveu_setup(
-	SHVEU *pvt,
-	unsigned long src_py,
-	unsigned long src_pc,
-	unsigned long src_width,
-	unsigned long src_height,
-	unsigned long src_pitch,
-	int src_fmt,
-	unsigned long dst_py,
-	unsigned long dst_pc,
-	unsigned long dst_width,
-	unsigned long dst_height,
-	unsigned long dst_pitch,
-	int dst_fmt,
+	SHVEU *veu,
+	struct shveu_surface *src_surface,
+	struct shveu_surface *dst_surface,
+	struct shveu_rect *src_selection,
+	struct shveu_rect *dst_selection,
 	shveu_rotation_t rotate);
+
 
 /** Set the source addresses. This is typically used for bundle mode.
  * \param veu VEU handle
- * \param src_py Physical address of Y or RGB plane of source image
- * \param src_pc Physical address of CbCr plane of source image (ignored for RGB)
+ * \param src_py Address of Y or RGB plane of source image
+ * \param src_pc Address of CbCr plane of source image (ignored for RGB)
  */
 void
 shveu_set_src(
@@ -92,8 +99,8 @@ shveu_set_src(
 
 /** Set the destination addresses. This is typically used for bundle mode.
  * \param veu VEU handle
- * \param dst_py Physical address of Y or RGB plane of destination image
- * \param dst_pc Physical address of CbCr plane of destination image (ignored for RGB)
+ * \param dst_py Address of Y or RGB plane of destination image
+ * \param dst_pc Address of CbCr plane of destination image (ignored for RGB)
  */
 void
 shveu_set_dst(
@@ -123,104 +130,28 @@ shveu_start_bundle(
 int
 shveu_wait(SHVEU *veu);
 
-/** Start a (scale|rotate) & crop between YCbCr & RGB surfaces
- * \param veu VEU handle
- * \param src_py Physical address of Y or RGB plane of source image
- * \param src_pc Physical address of CbCr plane of source image (ignored for RGB)
- * \param src_width Width in pixels of source image
- * \param src_height Height in pixels of source image
- * \param src_pitch Line pitch of source image
- * \param src_fmt Format of source image. One of:
- *		V4L2_PIX_FMT_NV12
- *		V4L2_PIX_FMT_NV16
- *		V4L2_PIX_FMT_RGB565
- *		V4L2_PIX_FMT_RGB32
- * \param dst_py Physical address of Y or RGB plane of destination image
- * \param dst_pc Physical address of CbCr plane of destination image (ignored for RGB)
- * \param dst_width Width in pixels of destination image
- * \param dst_height Height in pixels of destination image
- * \param dst_pitch Line pitch of destination image
- * \param dst_fmt Format of destination image. One of:
- *		V4L2_PIX_FMT_NV12
- *		V4L2_PIX_FMT_NV16
- *		V4L2_PIX_FMT_RGB565
- *		V4L2_PIX_FMT_RGB32
- * \param rotate Rotation to apply
- * \retval 0 Success
- * \retval -1 Error: Attempt to perform simultaneous scaling and rotation
- */
-int
-shveu_start_locked(
-	SHVEU *veu,
-	unsigned long src_py,
-	unsigned long src_pc,
-	unsigned long src_width,
-	unsigned long src_height,
-	unsigned long src_pitch,
-	int src_fmt,
-	unsigned long dst_py,
-	unsigned long dst_pc,
-	unsigned long dst_width,
-	unsigned long dst_height,
-	unsigned long dst_pitch,
-	int dst_fmt,
-	shveu_rotation_t rotate);
 
-/** Perform scale & crop between YCbCr & RGB surfaces
+/** Perform scale between YCbCr & RGB surfaces.
+ * This operates on entire surfaces and blocks until completion.
+ *
  * \param veu VEU handle
- * \param src_py Physical address of Y or RGB plane of source image
- * \param src_pc Physical address of CbCr plane of source image (ignored for RGB)
- * \param src_width Width in pixels of source image
- * \param src_height Height in pixels of source image
- * \param src_fmt Format of source image. One of:
- *		V4L2_PIX_FMT_NV12
- *		V4L2_PIX_FMT_NV16
- *		V4L2_PIX_FMT_RGB565
- *		V4L2_PIX_FMT_RGB32
- * \param dst_py Physical address of Y or RGB plane of destination image
- * \param dst_pc Physical address of CbCr plane of destination image (ignored for RGB)
- * \param dst_width Width in pixels of destination image
- * \param dst_height Height in pixels of destination image
- * \param dst_fmt Format of destination image. One of:
- *		V4L2_PIX_FMT_NV12
- *		V4L2_PIX_FMT_NV16
- *		V4L2_PIX_FMT_RGB565
- *		V4L2_PIX_FMT_RGB32
+ * \param src_surface Input surface
+ * \param dst_surface Output surface
  * \retval 0 Success
  * \retval -1 Error: Unsupported parameters
  */
 int
-shveu_rescale(
+shveu_resize(
 	SHVEU *veu,
-	unsigned long src_py,
-	unsigned long src_pc,
-	unsigned long src_width,
-	unsigned long src_height,
-	int src_fmt,
-	unsigned long dst_py,
-	unsigned long dst_pc,
-	unsigned long dst_width,
-	unsigned long dst_height,
-	int dst_fmt);
+	struct shveu_surface *src_surface,
+	struct shveu_surface *dst_surface);
 
-/** Perform rotate & crop between YCbCr & RGB surfaces
+/** Perform rotate between YCbCr & RGB surfaces
+ * This operates on entire surfaces and blocks until completion.
+ *
  * \param veu VEU handle
- * \param src_py Physical address of Y or RGB plane of source image
- * \param src_pc Physical address of CbCr plane of source image (ignored for RGB)
- * \param src_width Width in pixels of source image
- * \param src_height Height in pixels of source image
- * \param src_fmt Format of source image. One of:
- *		V4L2_PIX_FMT_NV12
- *		V4L2_PIX_FMT_NV16
- *		V4L2_PIX_FMT_RGB565
- *		V4L2_PIX_FMT_RGB32
- * \param dst_py Physical address of Y or RGB plane of destination image
- * \param dst_pc Physical address of CbCr plane of destination image (ignored for RGB)
- * \param dst_fmt Format of destination image. One of:
- *		V4L2_PIX_FMT_NV12
- *		V4L2_PIX_FMT_NV16
- *		V4L2_PIX_FMT_RGB565
- *		V4L2_PIX_FMT_RGB32
+ * \param src_surface Input surface
+ * \param dst_surface Output surface
  * \param rotate Rotation to apply
  * \retval 0 Success
  * \retval -1 Error: Unsupported parameters
@@ -228,37 +159,8 @@ shveu_rescale(
 int
 shveu_rotate(
 	SHVEU *veu,
-	unsigned long src_py,
-	unsigned long src_pc,
-	unsigned long src_width,
-	unsigned long src_height,
-	int src_fmt,
-	unsigned long dst_py,
-	unsigned long dst_pc,
-	int dst_fmt,
+	struct shveu_surface *src_surface,
+	struct shveu_surface *dst_surface,
 	shveu_rotation_t rotate);
-
-
-/** Set cropping attributes.
- * This is called prior to calling shveu_rescale, shveu_rotate, or shveu_start_locked.
- * \param veu VEU handle
- * \param crop_dst Set cropping attributes for source(=1) or destination(=0)
- * \param x1 Horizontal offset to left of image selection
- * \param x1 Horizontal offset to left of image selection
- * \param y1 Vertical offset to top of image selection
- * \param x2 Horizontal offset to right of image selection
- * \param y2 Vertical offset to bottom of image selection
- * \retval 0 Success
- * \retval -1 Error: Unsupported parameters
- */
-void
-shveu_crop (
-	SHVEU *veu,
-	int crop_dst,
-	int x1,
-	int y1,
-	int x2,
-	int y2);
-
 
 #endif				/* __VEU_COLORSPACE_H__ */

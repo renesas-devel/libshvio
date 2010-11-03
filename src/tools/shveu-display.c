@@ -116,19 +116,19 @@ struct extensions_t {
 };
 
 static const struct extensions_t exts[] = {
-	{ "RGB565",   V4L2_PIX_FMT_RGB565 },
-	{ "rgb",      V4L2_PIX_FMT_RGB565 },
-	{ "RGB888",   V4L2_PIX_FMT_RGB24 },
-	{ "888",      V4L2_PIX_FMT_RGB24 },
-	{ "RGBx888",  V4L2_PIX_FMT_RGB32 },
-	{ "x888",     V4L2_PIX_FMT_RGB32 },
-	{ "YCbCr420", V4L2_PIX_FMT_NV12 },
-	{ "420",      V4L2_PIX_FMT_NV12 },
-	{ "yuv",      V4L2_PIX_FMT_NV12 },
-	{ "NV12",     V4L2_PIX_FMT_NV12 },
-	{ "YCbCr422", V4L2_PIX_FMT_NV16 },
-	{ "422",      V4L2_PIX_FMT_NV16 },
-	{ "NV16",     V4L2_PIX_FMT_NV16 },
+	{ "RGB565",   SH_RGB565 },
+	{ "rgb",      SH_RGB565 },
+	{ "RGB888",   SH_RGB24 },
+	{ "888",      SH_RGB24 },
+	{ "RGBx888",  SH_RGB32 },
+	{ "x888",     SH_RGB32 },
+	{ "YCbCr420", SH_NV12 },
+	{ "420",      SH_NV12 },
+	{ "yuv",      SH_NV12 },
+	{ "NV12",     SH_NV12 },
+	{ "YCbCr422", SH_NV16 },
+	{ "422",      SH_NV16 },
+	{ "NV16",     SH_NV16 },
 };
 
 static int set_colorspace (char * arg, int * c)
@@ -182,20 +182,20 @@ static off_t imgsize (int colorspace, int w, int h)
 	int n=0, d=1;
 
 	switch (colorspace) {
-	case V4L2_PIX_FMT_RGB32:
+	case SH_RGB32:
 		/* 4 bytes per pixel */
 		n=4; d=1;
 		break;
-	case V4L2_PIX_FMT_RGB24:
+	case SH_RGB24:
 		/* 3 bytes per pixel */
 		n=3; d=1;
 		break;
-	case V4L2_PIX_FMT_RGB565:
-	case V4L2_PIX_FMT_NV16:
+	case SH_RGB565:
+	case SH_NV16:
 		/* 2 bytes per pixel */
 		n=2; d=1;
 	       	break;
-       case V4L2_PIX_FMT_NV12:
+       case SH_NV12:
 		/* 3/2 bytes per pixel */
 		n=3; d=2;
 		break;
@@ -281,34 +281,40 @@ static void scale(
 	int lcd_h = display_get_height(display);
 	int scaled_w = (int) (w * scale);
 	int scaled_h = (int) (h * scale);
+	struct shveu_surface src_surface;
+	struct shveu_surface dst_surface;
+	struct shveu_rect dst_selection;
 
 	/* Clear the back buffer */
 	draw_rect_rgb565(bb_virt, BLACK, 0, 0, lcd_w, lcd_h, lcd_w);
 
-	shveu_setup(veu,
-		py,      pc, w, h, w, src_fmt,
-		bb_phys, 0,  scaled_w, scaled_h, lcd_w, V4L2_PIX_FMT_RGB565,
+	src_surface.format = src_fmt;
+	src_surface.py = py;
+	src_surface.pc = pc;
+	src_surface.w = w;
+	src_surface.h = h;
+
+	dst_surface.format = SH_RGB565;
+	dst_surface.py = bb_phys;
+	dst_surface.pc = 0;
+	dst_surface.w = lcd_w;
+	dst_surface.h = lcd_h;
+
+	dst_selection.x = x;
+	dst_selection.y = y;
+	dst_selection.w = scaled_w;
+	dst_selection.h = scaled_h;
+
+	shveu_setup(
+		veu,
+		&src_surface,
+		&dst_surface,
+		NULL,
+		&dst_selection,
 		SHVEU_NO_ROT);
 
-#ifndef BUNDLE
-	{
-		int end = 0;
-		int nr_lines = 16;
-
-		while (end == 0) {
-			shveu_set_src(veu, py, pc);
-			shveu_set_dst(veu, bb_phys, 0);
-			py += nr_lines * w * 1;
-			pc += nr_lines * w / 2;
-			bb_phys += nr_lines * lcd_w * 2;
-			shveu_start_bundle(veu, nr_lines);
-			end = shveu_wait(veu);
-		}
-	}
-#else
 	shveu_start(veu);
 	shveu_wait(veu);
-#endif
 
 	display_flip(display);
 }
@@ -414,7 +420,7 @@ int main (int argc, char * argv[])
 			input_w = 320;
 			input_h = 240;
 		}
-		input_colorspace = V4L2_PIX_FMT_RGB565;
+		input_colorspace = SH_RGB565;
 	}
 
 	/* Check that all parameters are set */

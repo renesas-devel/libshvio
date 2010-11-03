@@ -21,13 +21,6 @@
 
 #include "shveu/shveu.h"
 
-static int input_w = -1;
-static int input_h = -1;
-static int output_w = -1;
-static int output_h = -1;
-static int input_colorspace = -1;
-static int output_colorspace = -1;
-
 /* Rotation: default none */
 static int rotation = SHVEU_NO_ROT;
 
@@ -116,26 +109,26 @@ static const char * show_size (int w, int h)
 
 struct extensions_t {
 	const char *ext;
-	int fmt;
+	shveu_format_t fmt;
 };
 
 static const struct extensions_t exts[] = {
-	{ "RGB565",   V4L2_PIX_FMT_RGB565 },
-	{ "rgb",      V4L2_PIX_FMT_RGB565 },
-	{ "RGB888",   V4L2_PIX_FMT_RGB24 },
-	{ "888",      V4L2_PIX_FMT_RGB24 },
-	{ "RGBx888",  V4L2_PIX_FMT_RGB32 },
-	{ "x888",     V4L2_PIX_FMT_RGB32 },
-	{ "YCbCr420", V4L2_PIX_FMT_NV12 },
-	{ "420",      V4L2_PIX_FMT_NV12 },
-	{ "yuv",      V4L2_PIX_FMT_NV12 },
-	{ "NV12",     V4L2_PIX_FMT_NV12 },
-	{ "YCbCr422", V4L2_PIX_FMT_NV16 },
-	{ "422",      V4L2_PIX_FMT_NV16 },
-	{ "NV16",     V4L2_PIX_FMT_NV16 },
+	{ "RGB565",   SH_RGB565 },
+	{ "rgb",      SH_RGB565 },
+	{ "RGB888",   SH_RGB24 },
+	{ "888",      SH_RGB24 },
+	{ "RGBx888",  SH_RGB32 },
+	{ "x888",     SH_RGB32 },
+	{ "YCbCr420", SH_NV12 },
+	{ "420",      SH_NV12 },
+	{ "yuv",      SH_NV12 },
+	{ "NV12",     SH_NV12 },
+	{ "YCbCr422", SH_NV16 },
+	{ "422",      SH_NV16 },
+	{ "NV16",     SH_NV16 },
 };
 
-static int set_colorspace (char * arg, int * c)
+static int set_colorspace (char * arg, shveu_format_t * c)
 {
 	int nr_exts = sizeof(exts) / sizeof(exts[0]);
 	int i;
@@ -153,7 +146,7 @@ static int set_colorspace (char * arg, int * c)
 	return -1;
 }
 
-static const char * show_colorspace (int c)
+static const char * show_colorspace (shveu_format_t c)
 {
 	int nr_exts = sizeof(exts) / sizeof(exts[0]);
 	int i;
@@ -193,25 +186,25 @@ static off_t filesize (char * filename)
 	return statbuf.st_size;
 }
 
-static off_t imgsize (int colorspace, int w, int h)
+static off_t imgsize (shveu_format_t colorspace, int w, int h)
 {
 	int n=0, d=1;
 
 	switch (colorspace) {
-	case V4L2_PIX_FMT_RGB32:
+	case SH_RGB32:
 		/* 4 bytes per pixel */
 		n=4; d=1;
 		break;
-	case V4L2_PIX_FMT_RGB24:
+	case SH_RGB24:
 		/* 3 bytes per pixel */
 		n=3; d=1;
 		break;
-	case V4L2_PIX_FMT_RGB565:
-	case V4L2_PIX_FMT_NV16:
+	case SH_RGB565:
+	case SH_NV16:
 		/* 2 bytes per pixel */
 		n=2; d=1;
 	       	break;
-       case V4L2_PIX_FMT_NV12:
+       case SH_NV12:
 		/* 3/2 bytes per pixel */
 		n=3; d=2;
 		break;
@@ -222,7 +215,7 @@ static off_t imgsize (int colorspace, int w, int h)
 	return (off_t)(w*h*n/d);
 }
 
-static int guess_colorspace (char * filename, int * c)
+static int guess_colorspace (char * filename, shveu_format_t * c)
 {
 	char * ext;
 
@@ -231,7 +224,7 @@ static int guess_colorspace (char * filename, int * c)
 
 	/* If the colorspace is already set (eg. explicitly by user args)
 	 * then don't try to guess */
-	if (*c != -1) return -1;
+	if (*c != SH_UNKNOWN) return -1;
 
 	ext = strrchr (filename, '.');
 	if (ext == NULL) return -1;
@@ -239,7 +232,7 @@ static int guess_colorspace (char * filename, int * c)
 	return set_colorspace(ext+1, c);
 }
 
-static int guess_size (char * filename, int colorspace, int * w, int * h)
+static int guess_size (char * filename, shveu_format_t colorspace, int * w, int * h)
 {
 	off_t size;
 
@@ -274,8 +267,9 @@ int main (int argc, char * argv[])
 	size_t nread;
 	size_t input_size, output_size;
 	unsigned char * src_virt, * dest_virt;
-	unsigned long src_py, src_pc, dest_py, dest_pc;
 	SHVEU *veu;
+	struct shveu_surface src;
+	struct shveu_surface dst;
 	int ret;
 	int frameno=0;
 
@@ -300,6 +294,14 @@ int main (int argc, char * argv[])
 		{NULL,0,0,0}
 	};
 #endif
+
+	src.w = -1;
+	src.h = -1;
+	dst.w = -1;
+	dst.h = -1;
+	src.format = SH_UNKNOWN;
+	dst.format = SH_UNKNOWN;
+
 
 	progname = argv[0];
 
@@ -331,16 +333,16 @@ int main (int argc, char * argv[])
 			outfilename = optarg;
 			break;
 		case 'c': /* input colorspace */
-			set_colorspace (optarg, &input_colorspace);
+			set_colorspace (optarg, &src.format);
 			break;
 		case 's': /* input size */
-			set_size (optarg, &input_w, &input_h);
+			set_size (optarg, &src.w, &src.h);
 			break;
 		case 'C': /* output colorspace */
-			set_colorspace (optarg, &output_colorspace);
+			set_colorspace (optarg, &dst.format);
 			break;
 		case 'S': /* output size */
-			set_size (optarg, &output_w, &output_h);
+			set_size (optarg, &dst.w, &dst.h);
 			break;
 		case 'r': /* rotate */
 			rotation = SHVEU_ROT_90;
@@ -376,82 +378,82 @@ int main (int argc, char * argv[])
 	printf ("Input file: %s\n", infilename);
 	printf ("Output file: %s\n", outfilename);
 
-	guess_colorspace (infilename, &input_colorspace);
-	guess_colorspace (outfilename, &output_colorspace);
+	guess_colorspace (infilename, &src.format);
+	guess_colorspace (outfilename, &dst.format);
 	/* If the output colorspace isn't given and can't be guessed, then default to
 	 * the input colorspace (ie. no colorspace conversion) */
-	if (output_colorspace == -1)
-		output_colorspace = input_colorspace;
+	if (dst.format == SH_UNKNOWN)
+		dst.format = src.format;
 
-	guess_size (infilename, input_colorspace, &input_w, &input_h);
+	guess_size (infilename, src.format, &src.w, &src.h);
 	/* If the output size isn't given and can't be guessed, then default to
 	 * the input size (ie. no rescaling) */
-	if (output_w == -1 && output_h == -1) {
+	if (dst.w == -1 && dst.h == -1) {
 		if (rotation == SHVEU_NO_ROT) {
-			output_w = input_w;
-			output_h = input_h;
+			dst.w = src.w;
+			dst.h = src.h;
 		} else {
 			/* Swap width/height for rotation */
-			output_w = input_h;
-			output_h = input_w;
+			dst.w = src.h;
+			dst.h = src.w;
 		}
 	}
 
 	/* Check that all parameters are set */
-	if (input_colorspace == -1) {
+	if (src.format == SH_UNKNOWN) {
 		fprintf (stderr, "ERROR: Input colorspace unspecified\n");
 		error = 1;
 	}
-	if (input_w == -1) {
+	if (src.w == -1) {
 		fprintf (stderr, "ERROR: Input width unspecified\n");
 		error = 1;
 	}
-	if (input_h == -1) {
+	if (src.h == -1) {
 		fprintf (stderr, "ERROR: Input height unspecified\n");
 		error = 1;
 	}
 
-	if (output_colorspace == -1) {
+	if (dst.format == SH_UNKNOWN) {
 		fprintf (stderr, "ERROR: Output colorspace unspecified\n");
 		error = 1;
 	}
-	if (output_w == -1) {
+	if (dst.w == -1) {
 		fprintf (stderr, "ERROR: Output width unspecified\n");
 		error = 1;
 	}
-	if (output_h == -1) {
+	if (dst.h == -1) {
 		fprintf (stderr, "ERROR: Output height unspecified\n");
 		error = 1;
 	}
 
 	if (error) goto exit_err;
 
-	printf ("Input colorspace:\t%s\n", show_colorspace (input_colorspace));
-	printf ("Input size:\t\t%dx%d %s\n", input_w, input_h, show_size (input_w, input_h));
-	printf ("Output colorspace:\t%s\n", show_colorspace (output_colorspace));
-	printf ("Output size:\t\t%dx%d %s\n", output_w, output_h, show_size (output_w, output_h));
+	printf ("Input colorspace:\t%s\n", show_colorspace (src.format));
+	printf ("Input size:\t\t%dx%d %s\n", src.w, src.h, show_size (src.w, src.h));
+	printf ("Output colorspace:\t%s\n", show_colorspace (dst.format));
+	printf ("Output size:\t\t%dx%d %s\n", dst.w, dst.h, show_size (dst.w, dst.h));
 	printf ("Rotation:\t\t%s\n", show_rotation (rotation));
 
-	input_size = imgsize (input_colorspace, input_w, input_h);
-	output_size = imgsize (output_colorspace, output_w, output_h);
+	input_size = imgsize (src.format, src.w, src.h);
+	output_size = imgsize (dst.format, dst.w, dst.h);
 
 	uiomux = uiomux_open ();
 
 	/* Set up memory buffers */
 	src_virt = uiomux_malloc (uiomux, UIOMUX_SH_VEU, input_size, 32);
-	src_py = uiomux_virt_to_phys (uiomux, UIOMUX_SH_VEU, src_virt);
-	if (input_colorspace == V4L2_PIX_FMT_RGB565) {
-		src_pc = 0;
+	src.py = uiomux_virt_to_phys (uiomux, UIOMUX_SH_VEU, src_virt);
+	if (src.format == SH_RGB565) {
+		src.pc = 0;
 	} else {
-		src_pc = src_py + (input_w * input_h);
+		src.pc = src.py + (src.w * src.h);
 	}
 
 	dest_virt = uiomux_malloc (uiomux, UIOMUX_SH_VEU, output_size, 32);
-	dest_py = uiomux_virt_to_phys (uiomux, UIOMUX_SH_VEU, dest_virt);
-	if (output_colorspace == V4L2_PIX_FMT_RGB565) {
-		dest_pc = 0;
+	dst.py = uiomux_virt_to_phys (uiomux, UIOMUX_SH_VEU, dest_virt);
+	if (dst.format == SH_RGB565) {
+		dst.pc = 0;
 	} else {
-		dest_pc = dest_py + (output_w * output_h);
+		dst.pc = dst.py + (dst.w * dst.h);
 	}
 
 	if (strcmp (infilename, "-") == 0) {
@@ -498,16 +500,11 @@ int main (int argc, char * argv[])
 			}
 		}
 
-		ret = shveu_start_locked (veu,
-				src_py,  src_pc,  input_w,  input_h,  input_w,  input_colorspace,
-				dest_py, dest_pc, output_w, output_h, output_w, output_colorspace,
-				rotation);
-
-		if (ret == -1) {
-			fprintf (stderr, "Illegal operation: cannot combine rotation and scaling\n");
-			goto exit_err;
+		if (rotation) {
+			ret = shveu_rotate(veu, &src, &dst, rotation);
+		} else {
+			ret = shveu_resize(veu, &src, &dst);
 		}
-		shveu_wait(veu);
 
 		/* Write output */
 		if (outfile && fwrite (dest_virt, 1, output_size, outfile) != output_size) {

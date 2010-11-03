@@ -12,8 +12,6 @@
 #include <sys/mman.h>
 #include <string.h>
 #include <linux/fb.h>
-#include <linux/videodev2.h>	/* For pixel formats */
-#include <shveu/shveu.h>
 
 #include "display.h"
 
@@ -36,14 +34,6 @@ struct DISPLAY {
 	int fb_index;
 	int lcd_w;
 	int lcd_h;
-
-	int fullscreen;
-	int out_w;
-	int out_h;
-	int out_x;
-	int out_y;
-
-	SHVEU *veu;
 };
 
 
@@ -56,12 +46,6 @@ DISPLAY *display_open(void)
 	disp = calloc(1, sizeof(*disp));
 	if (!disp)
 		return NULL;
-
-	disp->veu = shveu_open();
-	if (!disp->veu) {
-		free(disp);
-		return NULL;
-	}
 
 	/* Initialize display */
 	device = getenv("FRAMEBUFFER");
@@ -108,8 +92,6 @@ DISPLAY *display_open(void)
 	disp->fb_index = 0;
 	display_flip(disp);
 
-	display_set_fullscreen(disp);
-
 	return disp;
 }
 
@@ -122,13 +104,7 @@ void display_close(DISPLAY *disp)
 	ioctl(disp->fb_handle, FBIOPAN_DISPLAY, &disp->fb_var);
 
 	close(disp->fb_handle);
-	shveu_close(disp->veu);
 	free(disp);
-}
-
-int display_get_format(DISPLAY *disp)
-{
-	return V4L2_PIX_FMT_RGB565;
 }
 
 int display_get_width(DISPLAY *disp)
@@ -175,70 +151,5 @@ int display_flip(DISPLAY *disp)
 	ioctl(disp->fb_handle, FBIO_WAITFORVSYNC, &crt);
 
 	return 1;
-}
-
-
-int display_update(
-	DISPLAY *disp,
-	unsigned long py,
-	unsigned long pc,
-	int w,
-	int h,
-	int pitch,
-	int v4l_fmt)
-{
-	float scale, aspect_x, aspect_y;
-	int dst_w, dst_h;
-	int x1, y1, x2, y2;
-	int ret;
-
-	if (disp->fullscreen) {
-		/* Stick with the source aspect ratio */
-		aspect_x = (float) disp->lcd_w / w;
-		aspect_y = (float) disp->lcd_h / h;
-		if (aspect_x > aspect_y) {
-			scale = aspect_y;
-		} else {
-			scale = aspect_x;
-		}
-
-		dst_w = (int) (w * scale);
-		dst_h = (int) (h * scale);
-
-		x1 = disp->lcd_w/2 - dst_w/2;
-		y1 = disp->lcd_h/2 - dst_h/2;
-		x2 = x1 + dst_w;
-		y2 = y1 + dst_h;
-	} else {
-		x1 = disp->out_x;
-		y1 = disp->out_y;
-		x2 = x1 + disp->out_w;
-		y2 = y1 + disp->out_h;
-	}
-
-	shveu_crop(disp->veu, 1, x1, y1, x2, y2);
-
-	ret = shveu_rescale(disp->veu,
-		py, pc,	(long) w, (long) h, v4l_fmt,
-		disp->back_buf_phys, 0, disp->lcd_w, disp->lcd_h, V4L2_PIX_FMT_RGB565);
-
-	if (!ret)
-		display_flip(disp);
-
-	return ret;
-}
-
-void display_set_fullscreen(DISPLAY *disp)
-{
-	disp->fullscreen = 1;
-}
-
-void display_set_position(DISPLAY *disp, int w, int h, int x, int y)
-{
-	disp->fullscreen = 0;
-	disp->out_w = w;
-	disp->out_h = h;
-	disp->out_x = x;
-	disp->out_y = y;
 }
 

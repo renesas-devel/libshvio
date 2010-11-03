@@ -35,30 +35,35 @@
 #include "shveu/shveu.h"
 #include "shveu_regs.h"
 
+struct format_info {
+	shveu_format_t fmt;
+	int is_rgb;
+	int y_bpp;
+	int c_bpp_n;
+	int c_bpp_d;
+	unsigned long vtrcr_src;
+	unsigned long vtrcr_dst;
+	unsigned long vswpr;
+};
+
+/* WARNING! The order must be the same as shveu_format_t as we just index this table */
+static const struct format_info fmts[] = {
+	{ SH_NV12,   0, 1, 2, 1, VTRCR_SRC_FMT_YCBCR420, VTRCR_DST_FMT_YCBCR420, 7 },
+	{ SH_NV16,   0, 1, 1, 1, VTRCR_SRC_FMT_YCBCR422, VTRCR_DST_FMT_YCBCR422, 7 },
+	{ SH_RGB565, 1, 2, 0, 1, VTRCR_SRC_FMT_RGB565,   VTRCR_DST_FMT_RGB565,   6 },
+	{ SH_RGB24,  1, 3, 0, 1, VTRCR_SRC_FMT_RGB888,   VTRCR_DST_FMT_RGB888,   7 },
+	{ SH_RGB32,  1, 4, 0, 1, VTRCR_SRC_FMT_RGBX888,  VTRCR_DST_FMT_RGBX888,  4 },
+};
+
 struct uio_map {
 	unsigned long address;
 	unsigned long size;
 	void *iomem;
 };
 
-struct point {
-	int x;
-	int y;
-};
-
-struct rect {
-	struct point tl;	/* Top left */
-	struct point br;	/* Bottom right */
-};
-
 struct SHVEU {
 	UIOMux *uiomux;
 	struct uio_map uio_mmio;
-
-	int crop_src;
-	struct rect scrop;
-	int crop_dst;
-	struct rect dcrop;
 };
 
 
@@ -80,6 +85,7 @@ static void write_reg(struct uio_map *ump, unsigned long value, int reg_nr)
 
 static int sh_veu_is_veu2h(struct uio_map *ump)
 {
+	/* Is this a VEU2H on SH7723? */
 	return ump->size == 0x27c;
 }
 
@@ -89,7 +95,7 @@ static int sh_veu_is_veu3f(struct uio_map *ump)
 }
 
 static void set_scale(struct uio_map *ump, int vertical,
-		      int size_in, int size_out, int zoom, int clip_out)
+		      int size_in, int size_out, int zoom)
 {
 	unsigned long fixpoint, mant, frac, value, vb;
 
@@ -117,9 +123,7 @@ static void set_scale(struct uio_map *ump, int vertical,
 	}
 
 	/* set scale */
-
 	value = read_reg(ump, VRFCR);
-
 	if (vertical) {
 		value &= ~0xffff0000;
 		value |= ((mant << 12) | frac) << 16;
@@ -127,27 +131,10 @@ static void set_scale(struct uio_map *ump, int vertical,
 		value &= ~0xffff;
 		value |= (mant << 12) | frac;
 	}
-
 	write_reg(ump, value, VRFCR);
 
-	/* set clip */
-
-	value = read_reg(ump, VRFSR);
-
-	if (vertical) {
-		value &= ~0xffff0000;
-		value |= clip_out << 16;
-	} else {
-		value &= ~0xffff;
-		value |= clip_out;
-	}
-
-	write_reg(ump, value, VRFSR);
-
 	/* VEU3F needs additional VRPBR register handling */
-#ifdef KERNEL2_6_33
 	if (sh_veu_is_veu3f(ump)) {
-#endif
 		if (size_out >= size_in)
 			vb = 64;
 		else {
@@ -172,99 +159,90 @@ static void set_scale(struct uio_map *ump, int vertical,
 			value |= vb;
 		}
 		write_reg(ump, value, VRPBR);
-#ifdef KERNEL2_6_33
-	}
-#endif
-}
-
-static void align(int fmt, struct point *p)
-{
-	/* YCbCr x,y must be modulo 4 due to chroma sub-sampling and
-	   requirement for chroma address to be word aligned */
-	if (fmt != V4L2_PIX_FMT_RGB565) {
-		p->x = (p->x & ~3);
-		p->y = (p->y & ~3);
 	}
 }
 
 static void
-crop_offset(
-	unsigned long *py,
-	unsigned long *pc,
-	int fmt,
-	unsigned long width,
-	struct point *p)
+set_clip(struct uio_map *ump, int vertical, int clip_out)
 {
-	int offset = (p->y * width) + p->x;
+	unsigned long value;
 
-	if (fmt == V4L2_PIX_FMT_RGB565) {
-		*py += 2 * offset;
-	} else if (fmt == V4L2_PIX_FMT_RGB24) {
-		*py += 3 * offset;
-	} else if (fmt == V4L2_PIX_FMT_RGB32) {
-		*py += 4 * offset;
-	} else if (fmt == V4L2_PIX_FMT_NV12) {
-		*py += offset;
-		*pc += offset/2;
+	value = read_reg(ump, VRFSR);
+
+	if (vertical) {
+		value &= ~0xffff0000;
+		value |= clip_out << 16;
 	} else {
-		/* V4L2_PIX_FMT_NV16 */
-		*py += offset;
-		*pc += offset;
+		value &= ~0xffff;
+		value |= clip_out;
 	}
+
+	write_reg(ump, value, VRFSR);
 }
 
-static int format_supported(int fmt)
+static void
+limit_selection(
+	struct shveu_surface *surface,
+	struct shveu_rect *sel)
 {
-	if ((fmt == V4L2_PIX_FMT_NV12) ||
-	    (fmt == V4L2_PIX_FMT_NV16) ||
-	    (fmt == V4L2_PIX_FMT_RGB565) ||
-	    (fmt == V4L2_PIX_FMT_RGB24) ||
-	    (fmt == V4L2_PIX_FMT_RGB32))
-		return 1;
+	if (sel->x < 0) sel->x = 0;
+	if (sel->y < 0) sel->y = 0;
+	if (sel->x > surface->w) sel->x = surface->w;
+	if (sel->y > surface->h) sel->y = surface->h;
 
+	if ((sel->x + sel->w) > surface->w)
+		sel->w = surface->w - sel->x;
+	if ((sel->y + sel->h) > surface->h)
+		sel->h = surface->h - sel->y;
+}
+
+static unsigned long
+offset_py(
+	struct shveu_surface *surface,
+	struct shveu_rect *sel)
+{
+	struct format_info *info = &fmts[surface->format];
+	int offset = (sel->y * surface->w) + sel->x;
+	return surface->py + info->y_bpp * offset;
+}
+
+static unsigned long
+offset_pc(
+	struct shveu_surface *surface,
+	struct shveu_rect *sel)
+{
+	struct format_info *info = &fmts[surface->format];
+	int offset = (sel->y * surface->w) + sel->x;
+	return surface->pc + (info->c_bpp_n * offset) / info->c_bpp_d;
+}
+
+static int format_supported(shveu_format_t fmt)
+{
+	if (fmt < SH_UNKNOWN)
+		return 1;
 	return 0;
 }
 
-static int is_ycbcr(int fmt)
+static int is_ycbcr(shveu_format_t fmt)
 {
-	if ((fmt == V4L2_PIX_FMT_NV12) || (fmt == V4L2_PIX_FMT_NV16))
+	if (!fmts[fmt].is_rgb)
 		return 1;
 	return 0;
 }
 
-static int is_rgb(int fmt)
+static int is_rgb(shveu_format_t fmt)
 {
-	if ((fmt == V4L2_PIX_FMT_RGB565) || (fmt == V4L2_PIX_FMT_RGB24) || (fmt == V4L2_PIX_FMT_RGB32))
+	if (fmts[fmt].is_rgb)
 		return 1;
 	return 0;
 }
 
-static int different_colorspace(int fmt1, int fmt2)
+static int different_colorspace(shveu_format_t fmt1, shveu_format_t fmt2)
 {
-	if ((is_rgb(fmt1) && is_ycbcr(fmt2))
-	   || (is_ycbcr(fmt1) && is_rgb(fmt2)))
+	if (fmts[fmt1].is_rgb != fmts[fmt2].is_rgb)
 		return 1;
 	return 0;
 }
-
-static int width(struct rect *r)
-{
-	return (r->br.x - r->tl.x);
-}
-
-static int height(struct rect *r)
-{
-	return (r->br.y - r->tl.y);
-}
-
-static void limit(struct rect *r, int x1, int y1, int x2, int y2)
-{
-	if (r->tl.x < x1) r->tl.x = x1;
-	if (r->tl.y < y1) r->tl.y = y1;
-	if (r->br.x > x2) r->br.x = x2;
-	if (r->br.y > y2) r->br.y = y2;
-}
-
 
 SHVEU *shveu_open(void)
 {
@@ -286,9 +264,6 @@ SHVEU *shveu_open(void)
 	if (!ret)
 		goto err;
 
-	veu->crop_src = 0;
-	veu->crop_dst = 0;
-
 	return veu;
 
 err:
@@ -296,103 +271,60 @@ err:
 	return 0;
 }
 
-void shveu_close(SHVEU *pvt)
+void shveu_close(SHVEU *veu)
 {
-	if (pvt) {
-		if (pvt->uiomux)
-			uiomux_close(pvt->uiomux);
-		free(pvt);
+	if (veu) {
+		if (veu->uiomux)
+			uiomux_close(veu->uiomux);
+		free(veu);
 	}
 }
 
 int
 shveu_setup(
-	SHVEU *pvt,
-	unsigned long src_py,
-	unsigned long src_pc,
-	unsigned long src_width,
-	unsigned long src_height,
-	unsigned long src_pitch,
-	int src_fmt,
-	unsigned long dst_py,
-	unsigned long dst_pc,
-	unsigned long dst_width,
-	unsigned long dst_height,
-	unsigned long dst_pitch,
-	int dst_fmt,
+	SHVEU *veu,
+	struct shveu_surface *src_surface,
+	struct shveu_surface *dst_surface,
+	struct shveu_rect *src_selection,
+	struct shveu_rect *dst_selection,
 	shveu_rotation_t rotate)
 {
-	struct uio_map *ump = &pvt->uio_mmio;
+	struct uio_map *ump = &veu->uio_mmio;
 	float scale_x, scale_y;
-	unsigned long vdst_width;
-	unsigned long vdst_height;
+	unsigned long temp;
+	struct shveu_rect default_src_selection = {
+		.x = 0,
+		.y = 0,
+		.w = src_surface->w,
+		.h = src_surface->h,
+	};
+	struct shveu_rect default_dst_selection = {
+		.x = 0,
+		.y = 0,
+		.w = dst_surface->w,
+		.h = dst_surface->h,
+	};
+	int src_w, src_h;
+	int dst_w, dst_h;
+	unsigned long py, pc;
 
-#ifdef DEBUG
-	fprintf(stderr, "%s IN\n", __FUNCTION__);
-	fprintf(stderr, "src_fmt=%d: src_width=%lu, src_height=%lu src_pitch=%lu\n",
-		src_fmt, src_width, src_height, src_pitch);
-	fprintf(stderr, "dst_fmt=%d: dst_width=%lu, dst_height=%lu dst_pitch=%lu\n",
-		dst_fmt, dst_width, dst_height, dst_pitch);
-	fprintf(stderr, "rotate=%d\n", rotate);
-#endif
-	if (!pvt->crop_src) {
-		pvt->scrop.tl.x = 0;
-		pvt->scrop.tl.y = 0;
-		pvt->scrop.br.x = src_width;
-		pvt->scrop.br.y = src_height;
-	}
+	/* Use default selections if not provided */
+	if (!src_selection)
+		src_selection = &default_src_selection;
+	if (!dst_selection)
+		dst_selection = &default_dst_selection;
 
-	if (!pvt->crop_dst) {
-		pvt->dcrop.tl.x = 0;
-		pvt->dcrop.tl.y = 0;
-		pvt->dcrop.br.x = dst_width;
-		pvt->dcrop.br.y = dst_height;
-	}
-
-	/* Fix crop specification for required alignment */
-	align(src_fmt, &pvt->scrop.tl);
-	align(src_fmt, &pvt->scrop.br);
-	align(dst_fmt, &pvt->dcrop.tl);
-	align(dst_fmt, &pvt->dcrop.br);
-
-	vdst_width  = width(&pvt->dcrop);
-	vdst_height = height(&pvt->dcrop);
+	/* Save selection sizes for scaling calculation */
+	src_w = src_selection->w;
+	src_h = src_selection->h;
+	dst_w = dst_selection->w;
+	dst_h = dst_selection->h;
 
 	/* scale factors */
-	scale_x = (float)width(&pvt->dcrop)  / width(&pvt->scrop);
-	scale_y = (float)height(&pvt->dcrop) / height(&pvt->scrop);
+	scale_x = (float)dst_w / src_w;
+	scale_y = (float)dst_h / src_h;
 
-	/* limit cropping to the surface size */
-	limit(&pvt->scrop, 0, 0, src_width, src_height);
-	limit(&pvt->dcrop, 0, 0, dst_width, dst_height);
-
-	src_width  = width(&pvt->scrop);
-	src_height = height(&pvt->scrop);
-	dst_width  = width(&pvt->dcrop);
-	dst_height = height(&pvt->dcrop);
-
-#ifdef DEBUG
-	fprintf(stderr, "Scale x=%f, y=%f\n", scale_x, scale_y);
-	fprintf(stderr, "New src_width=%lu, src_height=%lu\n", src_width, src_height);
-	fprintf(stderr, "New dst_width=%lu, dst_height=%lu\n", dst_width, dst_height);
-#endif
-
-	/* Rotate can't be performed at the same time as a scale! */
-	if (rotate && (src_width != dst_height))
-		return -1;
-	if (rotate && (dst_width != src_height))
-		return -1;
-
-	if (!format_supported(src_fmt) || !format_supported(dst_fmt))
-		return -1;
-
-	/* VESWR/VEDWR restrictions */
-	if ((src_pitch % 4) || (dst_pitch % 4))
-		return -1;
-
-	/* VESSR restrictions */
-	if ((src_height < 16) || (src_height > 4092) ||
-	    (src_width  < 16) || (src_width  > 4092))
+	if (!format_supported(src_surface->format) || !format_supported(dst_surface->format))
 		return -1;
 
 	/* Scaling limits */
@@ -405,138 +337,70 @@ shveu_setup(
 	}
 	if ((scale_x < 1.0/16.0) || (scale_y < 1.0/16.0))
 		return -1;
+	temp = 0;
 
 
-	uiomux_lock (pvt->uiomux, UIOMUX_SH_VEU);
+	uiomux_lock (veu->uiomux, UIOMUX_SH_VEU);
 
 	/* reset */
 	write_reg(ump, 0x100, VBSRR);
 
+	/* default to not using bundle mode */
+	write_reg(ump, 0, VBSSR);
 
 	/* source */
-	if (pvt->crop_src) {
-		crop_offset(&src_py, &src_pc, src_fmt, src_pitch, &pvt->scrop.tl);
-	}
-	write_reg(ump, src_py, VSAYR);
-	write_reg(ump, src_pc, VSACR);
+	limit_selection(src_surface, src_selection);
+	py = offset_py(src_surface, src_selection);
+	pc = offset_pc(src_surface, src_selection);
+	write_reg(ump, py, VSAYR);
+	write_reg(ump, pc, VSACR);
 
-	write_reg(ump, (src_height << 16) | src_width, VESSR);
+	write_reg(ump, (src_selection->h << 16) | src_selection->w, VESSR);
 
-	if (src_fmt == V4L2_PIX_FMT_RGB565)
-		src_pitch *= 2;
-	if (src_fmt == V4L2_PIX_FMT_RGB24)
-		src_pitch *= 3;
-	if (src_fmt == V4L2_PIX_FMT_RGB32)
-		src_pitch *= 4;
-	write_reg(ump, src_pitch, VESWR);
-	write_reg(ump, 0, VBSSR);	/* not using bundle mode */
+	/* memory pitch in bytes */
+	temp = src_surface->w * fmts[src_surface->format].y_bpp;
+	write_reg(ump, temp, VESWR);
 
 
-	/* dest */
-	if (pvt->crop_dst) {
-		crop_offset(&dst_py, &dst_pc, dst_fmt, dst_pitch, &pvt->dcrop.tl);
-	}
+	/* destination */
+	limit_selection(dst_surface, dst_selection);
+	py = offset_py(dst_surface, dst_selection);
+	pc = offset_pc(dst_surface, dst_selection);
+
 	if (rotate) {
-		int src_vblk  = (src_height+15)/16;
-		int src_sidev = (src_height+15)%16 + 1;
-		int dst_density = 2;	/* for RGB565 and YCbCr422 */
+		int src_vblk  = (src_selection->h+15)/16;
+		int src_sidev = (src_selection->h+15)%16 + 1;
+		int dst_density = fmts[dst_surface->format].y_bpp;
 		int offset;
 
-		if (dst_fmt == V4L2_PIX_FMT_NV12)
-			dst_density = 1;
 		offset = ((src_vblk-2)*16 + src_sidev) * dst_density;
-
-		write_reg(ump, dst_py + offset, VDAYR);
-		write_reg(ump, dst_pc + offset, VDACR);
-	} else {
-		write_reg(ump, dst_py, VDAYR);
-		write_reg(ump, dst_pc, VDACR);
+		py += offset;
+		pc += offset;
 	}
+	write_reg(ump, py, VDAYR);
+	write_reg(ump, pc, VDACR);
 
-	if (dst_fmt == V4L2_PIX_FMT_RGB565)
-		dst_pitch *= 2;
-	if (dst_fmt == V4L2_PIX_FMT_RGB24)
-		dst_pitch *= 3;
-	if (dst_fmt == V4L2_PIX_FMT_RGB32)
-		dst_pitch *= 4;
-	write_reg(ump, dst_pitch, VEDWR);
+	/* memory pitch in bytes */
+	temp = dst_surface->w * fmts[dst_surface->format].y_bpp;
+	write_reg(ump, temp, VEDWR);
 
 	/* byte/word swapping */
-	{
-		unsigned long vswpr = 0;
-
+	temp = 0;
 #ifdef __LITTLE_ENDIAN__
-		if (src_fmt == V4L2_PIX_FMT_RGB32)
-			vswpr |= 0x4;
-		else if (src_fmt == V4L2_PIX_FMT_RGB565)
-			vswpr |= 0x6;
-		else
-			vswpr |= 0x7;
-
-		if (dst_fmt == V4L2_PIX_FMT_RGB32)
-			vswpr |= 0x40;
-		else if (dst_fmt == V4L2_PIX_FMT_RGB565)
-			vswpr |= 0x60;
-		else
-			vswpr |= 0x70;
+	temp |= fmts[src_surface->format].vswpr;
+	temp |= fmts[dst_surface->format].vswpr << 4;
 #endif
-		write_reg(ump, vswpr, VSWPR);
-#ifdef DEBUG
-		fprintf(stderr, "vswpr=0x%X\n", vswpr);
-#endif
-	}
+	write_reg(ump, temp, VSWPR);
 
 	/* transform control */
-	{
-		unsigned long vtrcr = 0;
-		switch (src_fmt)
-		{
-		case V4L2_PIX_FMT_RGB565:
-			vtrcr |= VTRCR_SRC_FMT_RGB565;
-			break;
-		case V4L2_PIX_FMT_RGB24:
-			vtrcr |= VTRCR_SRC_FMT_RGB888;
-			break;
-		case V4L2_PIX_FMT_RGB32:
-			vtrcr |= VTRCR_SRC_FMT_RGBX888;
-			break;
-		case V4L2_PIX_FMT_NV12:
-			vtrcr |= VTRCR_SRC_FMT_YCBCR420;
-			break;
-		case V4L2_PIX_FMT_NV16:
-			vtrcr |= VTRCR_SRC_FMT_YCBCR422;
-		}
+	temp = fmts[src_surface->format].vtrcr_src;
+	temp |= fmts[dst_surface->format].vtrcr_dst;
+	if (is_rgb(src_surface->format))
+		temp |= VTRCR_RY_SRC_RGB;
+	if (different_colorspace(src_surface->format, dst_surface->format))
+		temp |= VTRCR_TE_BIT_SET;
+	write_reg(ump, temp, VTRCR);
 
-		if (is_rgb(src_fmt))
-			vtrcr |= VTRCR_RY_SRC_RGB;
-
-		switch (dst_fmt)
-		{
-		case V4L2_PIX_FMT_RGB565:
-			vtrcr |= VTRCR_DST_FMT_RGB565;
-			break;
-		case V4L2_PIX_FMT_RGB24:
-			vtrcr |= VTRCR_DST_FMT_RGB888;
-			break;
-		case V4L2_PIX_FMT_RGB32:
-			vtrcr |= VTRCR_DST_FMT_RGBX888;
-			break;
-		case V4L2_PIX_FMT_NV12:
-			vtrcr |= VTRCR_DST_FMT_YCBCR420;
-			break;
-		case V4L2_PIX_FMT_NV16:
-			vtrcr |= VTRCR_DST_FMT_YCBCR422;
-		}
-
-		if (different_colorspace(src_fmt, dst_fmt))
-			vtrcr |= VTRCR_TE_BIT_SET;
-		write_reg(ump, vtrcr, VTRCR);
-#ifdef DEBUG
-		fprintf(stderr, "vtrcr=0x%X\n", vtrcr);
-#endif
-	}
-
-	/* Is this a VEU2H on SH7723? */
 	if (sh_veu_is_veu2h(ump)) {
 		/* color conversion matrix */
 		write_reg(ump, 0x0cc5, VMCR00);
@@ -551,56 +415,54 @@ shveu_setup(
 		write_reg(ump, 0x00800010, VCOFFR);
 	}
 
-	write_reg(ump, 0, VRFCR);
+	/* Clipping */
 	write_reg(ump, 0, VRFSR);
-	if ((vdst_width*vdst_height) > (src_width*src_height)) {
-		set_scale(ump, 0, src_width,  vdst_width, 1, dst_width);
-		set_scale(ump, 1, src_height, vdst_height, 1, dst_height);
-	} else {
-		set_scale(ump, 0, src_width,  vdst_width, 0, dst_width);
-		set_scale(ump, 1, src_height, vdst_height, 0, dst_height);
+	set_clip(ump, 0, dst_selection->w);
+	set_clip(ump, 1, dst_selection->h);
+
+	/* Scaling - based on selections before cropping */
+	write_reg(ump, 0, VRFCR);
+	if (!rotate) {
+		set_scale(ump, 0, src_w, dst_w, 0);
+		set_scale(ump, 1, src_h, dst_h, 0);
 	}
 
+	/* Rotate */
 	if (rotate) {
 		write_reg(ump, 1, VFMCR);
-		write_reg(ump, 0, VRFCR);
 	} else {
 		write_reg(ump, 0, VFMCR);
 	}
-
-#ifdef DEBUG
-	fprintf(stderr, "%s OUT\n", __FUNCTION__);
-#endif
 
 	return 0;
 }
 
 void
 shveu_set_src(
-	SHVEU *pvt,
+	SHVEU *veu,
 	unsigned long src_py,
 	unsigned long src_pc)
 {
-	struct uio_map *ump = &pvt->uio_mmio;
+	struct uio_map *ump = &veu->uio_mmio;
 	write_reg(ump, src_py, VSAYR);
 	write_reg(ump, src_pc, VSACR);
 }
 
 void
 shveu_set_dst(
-	SHVEU *pvt,
+	SHVEU *veu,
 	unsigned long dst_py,
 	unsigned long dst_pc)
 {
-	struct uio_map *ump = &pvt->uio_mmio;
+	struct uio_map *ump = &veu->uio_mmio;
 	write_reg(ump, dst_py, VDAYR);
 	write_reg(ump, dst_pc, VDACR);
 }
 
 void
-shveu_start(SHVEU *pvt)
+shveu_start(SHVEU *veu)
 {
-	struct uio_map *ump = &pvt->uio_mmio;
+	struct uio_map *ump = &veu->uio_mmio;
 
 	/* enable interrupt in VEU */
 	write_reg(ump, 1, VEIER);
@@ -611,10 +473,10 @@ shveu_start(SHVEU *pvt)
 
 void
 shveu_start_bundle(
-	SHVEU *pvt,
+	SHVEU *veu,
 	int bundle_lines)
 {
-	struct uio_map *ump = &pvt->uio_mmio;
+	struct uio_map *ump = &veu->uio_mmio;
 
 	write_reg(ump, bundle_lines, VBSSR);
 
@@ -626,21 +488,21 @@ shveu_start_bundle(
 }
 
 int
-shveu_wait(SHVEU *pvt)
+shveu_wait(SHVEU *veu)
 {
-	struct uio_map *ump = &pvt->uio_mmio;
+	struct uio_map *ump = &veu->uio_mmio;
 	unsigned long vevtr;
 	unsigned long vstar;
 	int complete = 0;
 
-	uiomux_sleep(pvt->uiomux, UIOMUX_SH_VEU);
+	uiomux_sleep(veu->uiomux, UIOMUX_SH_VEU);
 
 	vevtr = read_reg(ump, VEVTR);
 	write_reg(ump, 0, VEVTR);   /* ack interrupts */
 
 	/* End of VEU operation? */
 	if (vevtr & 1) {
-		uiomux_unlock(pvt->uiomux, UIOMUX_SH_VEU);
+		uiomux_unlock(veu->uiomux, UIOMUX_SH_VEU);
 		complete = 1;
 	}
 
@@ -648,58 +510,20 @@ shveu_wait(SHVEU *pvt)
 }
 
 int
-shveu_start_locked(
+shveu_resize(
 	SHVEU *veu,
-	unsigned long src_py,
-	unsigned long src_pc,
-	unsigned long src_width,
-	unsigned long src_height,
-	unsigned long src_pitch,
-	int src_fmt,
-	unsigned long dst_py,
-	unsigned long dst_pc,
-	unsigned long dst_width,
-	unsigned long dst_height,
-	unsigned long dst_pitch,
-	int dst_fmt,
-	shveu_rotation_t rotate)
+	struct shveu_surface *src_surface,
+	struct shveu_surface *dst_surface)
 {
-	int ret = shveu_setup(
-		veu,
-		src_py, src_pc, src_width, src_height, src_width, src_fmt,
-		dst_py, dst_pc, dst_width, dst_height, dst_width, dst_fmt,
-		rotate);
+	int ret;
 
-	if (ret == 0)
+	ret = shveu_setup(veu, src_surface, dst_surface,
+		NULL, NULL, SHVEU_NO_ROT);
+
+	if (ret == 0) {
 		shveu_start(veu);
-
-	return ret;
-}
-
-int
-shveu_rescale(
-	SHVEU *veu,
-	unsigned long src_py,
-	unsigned long src_pc,
-	unsigned long src_width,
-	unsigned long src_height,
-	int src_fmt,
-	unsigned long dst_py,
-	unsigned long dst_pc,
-	unsigned long dst_width,
-	unsigned long dst_height,
-	int dst_fmt)
-{
-	int ret = 0;
-
-	ret = shveu_start_locked(
-		veu,
-		src_py, src_pc, src_width, src_height, src_width, src_fmt,
-		dst_py, dst_pc, dst_width, dst_height, dst_width, dst_fmt,
-		SHVEU_NO_ROT);
-
-	if (ret == 0)
 		shveu_wait(veu);
+	}
 
 	return ret;
 }
@@ -707,52 +531,20 @@ shveu_rescale(
 int
 shveu_rotate(
 	SHVEU *veu,
-	unsigned long src_py,
-	unsigned long src_pc,
-	unsigned long src_width,
-	unsigned long src_height,
-	int src_fmt,
-	unsigned long dst_py,
-	unsigned long dst_pc,
-	int dst_fmt,
+	struct shveu_surface *src_surface,
+	struct shveu_surface *dst_surface,
 	shveu_rotation_t rotate)
 {
-	int ret = 0;
+	int ret;
 
-	ret = shveu_start_locked(
-		veu,
-		src_py, src_pc, src_width, src_height, src_width, src_fmt,
-		dst_py, dst_pc, src_height, src_width, src_height, dst_fmt,
-		rotate);
+	ret = shveu_setup(veu, src_surface, dst_surface,
+		NULL, NULL, rotate);
 
-	if (ret == 0)
+	if (ret == 0) {
+		shveu_start(veu);
 		shveu_wait(veu);
-
-	return ret;
-}
-
-void
-shveu_crop (
-	SHVEU *veu,
-	int crop_dst,
-	int x1,
-	int y1,
-	int x2,
-	int y2)
-{
-	struct rect * r;
-
-	if (crop_dst) {
-		veu->crop_dst = 1;
-		r = &veu->dcrop;
-	} else {
-		veu->crop_src = 1;
-		r = &veu->scrop;
 	}
 
-	r->tl.x = x1;
-	r->tl.y = y1;
-	r->br.x = x2;
-	r->br.y = y2;
+	return ret;
 }
 
