@@ -46,7 +46,6 @@ struct format_info {
 	unsigned long vswpr;
 };
 
-/* WARNING! The order must be the same as shveu_format_t as we just index this table */
 static const struct format_info fmts[] = {
 	{ SH_NV12,   0, 1, 1, 2, VTRCR_SRC_FMT_YCBCR420, VTRCR_DST_FMT_YCBCR420, 7 },
 	{ SH_NV16,   0, 1, 1, 1, VTRCR_SRC_FMT_YCBCR422, VTRCR_DST_FMT_YCBCR422, 7 },
@@ -66,6 +65,18 @@ struct SHVEU {
 	struct uio_map uio_mmio;
 };
 
+
+static const struct format_info *fmt_info(shveu_format_t format)
+{
+	int i, nr_fmts;
+
+	nr_fmts = sizeof(fmts) / sizeof(fmts[0]);
+	for (i=0; i<nr_fmts; i++) {
+		if (fmts[i].fmt == format)
+			return &fmts[i];
+	}
+	return NULL;
+}
 
 /* Helper functions for reading registers. */
 
@@ -205,9 +216,9 @@ limit_selection(
 static unsigned long
 offset_py(
 	const struct shveu_surface *surface,
+	const struct format_info *info,
 	const struct shveu_rect *sel)
 {
-	const struct format_info *info = &fmts[surface->format];
 	int offset = (sel->y * surface->w) + sel->x;
 	return surface->py + info->y_bpp * offset;
 }
@@ -215,37 +226,42 @@ offset_py(
 static unsigned long
 offset_pc(
 	const struct shveu_surface *surface,
+	const struct format_info *info,
 	const struct shveu_rect *sel)
 {
-	const struct format_info *info = &fmts[surface->format];
 	int offset = (sel->y * surface->w) + sel->x;
 	return surface->pc + (info->c_bpp_n * offset) / info->c_bpp_d;
 }
 
 static int format_supported(shveu_format_t fmt)
 {
-	if (fmt < SH_UNKNOWN)
+	const struct format_info *info = fmt_info(fmt);
+	if (info)
 		return 1;
 	return 0;
 }
 
 static int is_ycbcr(shveu_format_t fmt)
 {
-	if (!fmts[fmt].is_rgb)
+	const struct format_info *info = fmt_info(fmt);
+	if (!info->is_rgb)
 		return 1;
 	return 0;
 }
 
 static int is_rgb(shveu_format_t fmt)
 {
-	if (fmts[fmt].is_rgb)
+	const struct format_info *info = fmt_info(fmt);
+	if (info->is_rgb)
 		return 1;
 	return 0;
 }
 
 static int different_colorspace(shveu_format_t fmt1, shveu_format_t fmt2)
 {
-	if (fmts[fmt1].is_rgb != fmts[fmt2].is_rgb)
+	const struct format_info *info1 = fmt_info(fmt1);
+	const struct format_info *info2 = fmt_info(fmt2);
+	if (info1->is_rgb != info2->is_rgb)
 		return 1;
 	return 0;
 }
@@ -315,7 +331,8 @@ shveu_setup(
 	unsigned long py, pc;
 	struct shveu_rect new_src_selection;
 	struct shveu_rect new_dst_selection;
-
+	const struct format_info *src_info = fmt_info(src_surface->format);
+	const struct format_info *dst_info = fmt_info(dst_surface->format);
 
 	/* Use default selections if not provided */
 	if (!src_selection)
@@ -359,27 +376,27 @@ shveu_setup(
 
 	/* source */
 	limit_selection(src_surface, src_selection, &new_src_selection);
-	py = offset_py(src_surface, &new_src_selection);
-	pc = offset_pc(src_surface, &new_src_selection);
+	py = offset_py(src_surface, src_info, &new_src_selection);
+	pc = offset_pc(src_surface, src_info, &new_src_selection);
 	write_reg(ump, py, VSAYR);
 	write_reg(ump, pc, VSACR);
 
 	write_reg(ump, (new_src_selection.h << 16) | new_src_selection.w, VESSR);
 
 	/* memory pitch in bytes */
-	temp = src_surface->w * fmts[src_surface->format].y_bpp;
+	temp = src_surface->w * src_info->y_bpp;
 	write_reg(ump, temp, VESWR);
 
 
 	/* destination */
 	limit_selection(dst_surface, dst_selection, &new_dst_selection);
-	py = offset_py(dst_surface, &new_dst_selection);
-	pc = offset_pc(dst_surface, &new_dst_selection);
+	py = offset_py(dst_surface, dst_info, &new_dst_selection);
+	pc = offset_pc(dst_surface, dst_info, &new_dst_selection);
 
 	if (rotate) {
 		int src_vblk  = (new_src_selection.h+15)/16;
 		int src_sidev = (new_src_selection.h+15)%16 + 1;
-		int dst_density = fmts[dst_surface->format].y_bpp;
+		int dst_density = dst_info->y_bpp;
 		int offset;
 
 		offset = ((src_vblk-2)*16 + src_sidev) * dst_density;
@@ -390,20 +407,20 @@ shveu_setup(
 	write_reg(ump, pc, VDACR);
 
 	/* memory pitch in bytes */
-	temp = dst_surface->w * fmts[dst_surface->format].y_bpp;
+	temp = dst_surface->w * dst_info->y_bpp;
 	write_reg(ump, temp, VEDWR);
 
 	/* byte/word swapping */
 	temp = 0;
 #ifdef __LITTLE_ENDIAN__
-	temp |= fmts[src_surface->format].vswpr;
-	temp |= fmts[dst_surface->format].vswpr << 4;
+	temp |= src_info->vswpr;
+	temp |= dst_info->vswpr << 4;
 #endif
 	write_reg(ump, temp, VSWPR);
 
 	/* transform control */
-	temp = fmts[src_surface->format].vtrcr_src;
-	temp |= fmts[dst_surface->format].vtrcr_dst;
+	temp = src_info->vtrcr_src;
+	temp |= dst_info->vtrcr_dst;
 	if (is_rgb(src_surface->format))
 		temp |= VTRCR_RY_SRC_RGB;
 	if (different_colorspace(src_surface->format, dst_surface->format))
