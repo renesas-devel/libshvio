@@ -10,8 +10,12 @@
         global:
 		shveu_open;
 		shveu_close;
-		shveu_start_locked;
+		shveu_setup;
+		shveu_set_src;
+		shveu_set_dst;
+		shveu_start;
 		shveu_wait;
+		shveu_start_locked;
 		shveu_rescale;
 		shveu_rotate;
 		shveu_crop;

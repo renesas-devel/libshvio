@@ -279,62 +279,36 @@ static void scale(
 	unsigned long  bb_phys = display_get_back_buff_phys(display);
 	int lcd_w = display_get_width(display);
 	int lcd_h = display_get_height(display);
-	int scaled_w = (int) (w * scale / 2.0);
-	int scaled_h = (int) (h * scale / 2.0);
-	int src_x1, src_y1, src_x2, src_y2;
-	int dst_x1, dst_y1, dst_x2, dst_y2;
-	float tmp;
+	int scaled_w = (int) (w * scale);
+	int scaled_h = (int) (h * scale);
 
 	/* Clear the back buffer */
 	draw_rect_rgb565(bb_virt, BLACK, 0, 0, lcd_w, lcd_h, lcd_w);
 
-	src_x1 = 0;
-	src_y1 = 0;
-	src_x2 = w;
-	src_y2 = h;
+	shveu_setup(veu,
+		py,      pc, w, h, w, src_fmt,
+		bb_phys, 0,  scaled_w, scaled_h, lcd_w, V4L2_PIX_FMT_RGB565,
+		SHVEU_NO_ROT);
 
-	dst_x1 = dst_x2 = lcd_w/2 + x;
-	dst_y1 = dst_y2 = lcd_h/2 + y;
+#ifndef BUNDLE
+	{
+		int end = 0;
+		int nr_lines = 16;
 
-	dst_x1 -= scaled_w;
-	dst_y1 -= scaled_h;
-	dst_x2 += scaled_w;
-	dst_y2 += scaled_h;
-
-	/* Output is off screen? */
-	if ((dst_x1 > lcd_w) || (dst_x2 < 0) || (dst_y1 > lcd_h) || (dst_y2 < 0))
-		return;
-
-	/* Crop source so that the output is on the lcd */
-	if (dst_x1 < 0) {
-		tmp = (-dst_x1) / (float)scaled_w;
-		src_x1 = (w/2) * tmp;
-		dst_x1 = 0;
+		while (end == 0) {
+			shveu_set_src(veu, py, pc);
+			shveu_set_dst(veu, bb_phys, 0);
+			py += nr_lines * w * 1;
+			pc += nr_lines * w / 2;
+			bb_phys += nr_lines * lcd_w * 2;
+			shveu_start_bundle(veu, nr_lines);
+			end = shveu_wait(veu);
+		}
 	}
-	if (dst_x2 > lcd_w) {
-		tmp = (dst_x2 - lcd_w) / (float)scaled_w;
-		src_x2 = w - ((w/2) * tmp);
-		dst_x2 = lcd_w;
-	}
-
-	if (dst_y1 < 0) {
-		tmp = (-dst_y1) / (float)scaled_h;
-		src_y1 = (h/2) * tmp;
-		dst_y1 = 0;
-	}
-	if (dst_y2 > lcd_h) {
-		tmp = (dst_y2 - lcd_h) / (float)scaled_h;
-		src_y2 = h - ((h/2) * tmp);
-		dst_y2 = lcd_h;
-	}
-
-	/* Cropping */
-	shveu_crop(veu, 0, src_x1, src_y1, src_x2, src_y2);
-	shveu_crop(veu, 1, dst_x1, dst_y1, dst_x2, dst_y2);
-
-	shveu_rescale(veu,
-		py,      pc, w, h, src_fmt,
-		bb_phys, 0,  lcd_w, lcd_h, V4L2_PIX_FMT_RGB565);
+#else
+	shveu_start(veu);
+	shveu_wait(veu);
+#endif
 
 	display_flip(display);
 }
@@ -567,7 +541,6 @@ int main (int argc, char * argv[])
 		}
 #endif
 	}
-
 
 #ifdef HAVE_NCURSES
 	/* ncurses close */

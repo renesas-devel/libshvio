@@ -306,7 +306,7 @@ void shveu_close(SHVEU *pvt)
 }
 
 int
-shveu_start_locked(
+shveu_setup(
 	SHVEU *pvt,
 	unsigned long src_py,
 	unsigned long src_pc,
@@ -568,12 +568,6 @@ shveu_start_locked(
 		write_reg(ump, 0, VFMCR);
 	}
 
-	/* enable interrupt in VEU */
-	write_reg(ump, 1, VEIER);
-
-	/* start operation */
-	write_reg(ump, 1, VESTR);
-
 #ifdef DEBUG
 	fprintf(stderr, "%s OUT\n", __FUNCTION__);
 #endif
@@ -582,16 +576,104 @@ shveu_start_locked(
 }
 
 void
+shveu_set_src(
+	SHVEU *pvt,
+	unsigned long src_py,
+	unsigned long src_pc)
+{
+	struct uio_map *ump = &pvt->uio_mmio;
+	write_reg(ump, src_py, VSAYR);
+	write_reg(ump, src_pc, VSACR);
+}
+
+void
+shveu_set_dst(
+	SHVEU *pvt,
+	unsigned long dst_py,
+	unsigned long dst_pc)
+{
+	struct uio_map *ump = &pvt->uio_mmio;
+	write_reg(ump, dst_py, VDAYR);
+	write_reg(ump, dst_pc, VDACR);
+}
+
+void
+shveu_start(SHVEU *pvt)
+{
+	struct uio_map *ump = &pvt->uio_mmio;
+
+	/* enable interrupt in VEU */
+	write_reg(ump, 1, VEIER);
+
+	/* start operation */
+	write_reg(ump, 1, VESTR);
+}
+
+void
+shveu_start_bundle(
+	SHVEU *pvt,
+	int bundle_lines)
+{
+	struct uio_map *ump = &pvt->uio_mmio;
+
+	write_reg(ump, bundle_lines, VBSSR);
+
+	/* enable interrupt in VEU */
+	write_reg(ump, 0x101, VEIER);
+
+	/* start operation */
+	write_reg(ump, 0x101, VESTR);
+}
+
+int
 shveu_wait(SHVEU *pvt)
 {
+	struct uio_map *ump = &pvt->uio_mmio;
+	unsigned long vevtr;
+	unsigned long vstar;
+	int complete = 0;
+
 	uiomux_sleep(pvt->uiomux, UIOMUX_SH_VEU);
-	write_reg(&pvt->uio_mmio, 0x100, VEVTR);   /* ack int, write 0 to bit 0 */
 
-	/* Wait for VEU to stop */
-	while (read_reg(&pvt->uio_mmio, VSTAR) & 1)
-		;
+	vevtr = read_reg(ump, VEVTR);
+	write_reg(ump, 0, VEVTR);   /* ack interrupts */
 
-	uiomux_unlock(pvt->uiomux, UIOMUX_SH_VEU);
+	/* End of VEU operation? */
+	if (vevtr & 1) {
+		uiomux_unlock(pvt->uiomux, UIOMUX_SH_VEU);
+		complete = 1;
+	}
+
+	return complete;
+}
+
+int
+shveu_start_locked(
+	SHVEU *veu,
+	unsigned long src_py,
+	unsigned long src_pc,
+	unsigned long src_width,
+	unsigned long src_height,
+	unsigned long src_pitch,
+	int src_fmt,
+	unsigned long dst_py,
+	unsigned long dst_pc,
+	unsigned long dst_width,
+	unsigned long dst_height,
+	unsigned long dst_pitch,
+	int dst_fmt,
+	shveu_rotation_t rotate)
+{
+	int ret = shveu_setup(
+		veu,
+		src_py, src_pc, src_width, src_height, src_width, src_fmt,
+		dst_py, dst_pc, dst_width, dst_height, dst_width, dst_fmt,
+		rotate);
+
+	if (ret == 0)
+		shveu_start(veu);
+
+	return ret;
 }
 
 int

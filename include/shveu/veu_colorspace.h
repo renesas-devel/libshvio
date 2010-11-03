@@ -36,6 +36,93 @@ typedef enum {
 	SHVEU_ROT_90,	/**< Rotate 90 degrees clockwise */
 } shveu_rotation_t;
 
+/** Setup a (scale|rotate) & crop between YCbCr & RGB surfaces
+ * \param veu VEU handle
+ * \param src_py Physical address of Y or RGB plane of source image
+ * \param src_pc Physical address of CbCr plane of source image (ignored for RGB)
+ * \param src_width Width in pixels of source image
+ * \param src_height Height in pixels of source image
+ * \param src_pitch Line pitch of source image
+ * \param src_fmt Format of source image. One of:
+ *		V4L2_PIX_FMT_NV12
+ *		V4L2_PIX_FMT_NV16
+ *		V4L2_PIX_FMT_RGB565
+ *		V4L2_PIX_FMT_RGB32
+ * \param dst_py Physical address of Y or RGB plane of destination image
+ * \param dst_pc Physical address of CbCr plane of destination image (ignored for RGB)
+ * \param dst_width Width in pixels of destination image
+ * \param dst_height Height in pixels of destination image
+ * \param dst_pitch Line pitch of destination image
+ * \param dst_fmt Format of destination image. One of:
+ *		V4L2_PIX_FMT_NV12
+ *		V4L2_PIX_FMT_NV16
+ *		V4L2_PIX_FMT_RGB565
+ *		V4L2_PIX_FMT_RGB32
+ * \param rotate Rotation to apply
+ * \retval 0 Success
+ * \retval -1 Error: Attempt to perform simultaneous scaling and rotation
+ */
+int
+shveu_setup(
+	SHVEU *pvt,
+	unsigned long src_py,
+	unsigned long src_pc,
+	unsigned long src_width,
+	unsigned long src_height,
+	unsigned long src_pitch,
+	int src_fmt,
+	unsigned long dst_py,
+	unsigned long dst_pc,
+	unsigned long dst_width,
+	unsigned long dst_height,
+	unsigned long dst_pitch,
+	int dst_fmt,
+	shveu_rotation_t rotate);
+
+/** Set the source addresses. This is typically used for bundle mode.
+ * \param veu VEU handle
+ * \param src_py Physical address of Y or RGB plane of source image
+ * \param src_pc Physical address of CbCr plane of source image (ignored for RGB)
+ */
+void
+shveu_set_src(
+	SHVEU *veu,
+	unsigned long src_py,
+	unsigned long src_pc);
+
+/** Set the destination addresses. This is typically used for bundle mode.
+ * \param veu VEU handle
+ * \param dst_py Physical address of Y or RGB plane of destination image
+ * \param dst_pc Physical address of CbCr plane of destination image (ignored for RGB)
+ */
+void
+shveu_set_dst(
+	SHVEU *veu,
+	unsigned long dst_py,
+	unsigned long dst_pc);
+
+/** Start a VEU operation (non-bundle mode).
+ * \param veu VEU handle
+ */
+void
+shveu_start(
+	SHVEU *veu);
+
+/** Start a VEU operation (bundle mode).
+ * \param veu VEU handle
+ * \param bundle_lines Number of lines to process
+ */
+void
+shveu_start_bundle(
+	SHVEU *veu,
+	int bundle_lines);
+
+/** Wait for a VEU operation to complete. The operation is started by a call to shveu_start.
+ * \param veu VEU handle
+ */
+int
+shveu_wait(SHVEU *veu);
+
 /** Start a (scale|rotate) & crop between YCbCr & RGB surfaces
  * \param veu VEU handle
  * \param src_py Physical address of Y or RGB plane of source image
@@ -78,12 +165,6 @@ shveu_start_locked(
 	unsigned long dst_pitch,
 	int dst_fmt,
 	shveu_rotation_t rotate);
-
-/** Wait for a VEU operation to complete. The operation is started by a call to shveu_start.
- * \param veu VEU handle
- */
-void
-shveu_wait(SHVEU *veu);
 
 /** Perform scale & crop between YCbCr & RGB surfaces
  * \param veu VEU handle
