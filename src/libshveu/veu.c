@@ -39,8 +39,8 @@ struct format_info {
 	shveu_format_t fmt;
 	int is_rgb;
 	int y_bpp;
-	int c_bpp_n;
-	int c_bpp_d;
+	int c_bpp_n;	/* numerator */
+	int c_bpp_d;	/* denominator */
 	unsigned long vtrcr_src;
 	unsigned long vtrcr_dst;
 	unsigned long vswpr;
@@ -48,7 +48,7 @@ struct format_info {
 
 /* WARNING! The order must be the same as shveu_format_t as we just index this table */
 static const struct format_info fmts[] = {
-	{ SH_NV12,   0, 1, 2, 1, VTRCR_SRC_FMT_YCBCR420, VTRCR_DST_FMT_YCBCR420, 7 },
+	{ SH_NV12,   0, 1, 1, 2, VTRCR_SRC_FMT_YCBCR420, VTRCR_DST_FMT_YCBCR420, 7 },
 	{ SH_NV16,   0, 1, 1, 1, VTRCR_SRC_FMT_YCBCR422, VTRCR_DST_FMT_YCBCR422, 7 },
 	{ SH_RGB565, 1, 2, 0, 1, VTRCR_SRC_FMT_RGB565,   VTRCR_DST_FMT_RGB565,   6 },
 	{ SH_RGB24,  1, 3, 0, 1, VTRCR_SRC_FMT_RGB888,   VTRCR_DST_FMT_RGB888,   7 },
