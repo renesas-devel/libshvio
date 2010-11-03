@@ -17,10 +17,38 @@ This source archive contains:
 libshveu API
 ------------
 
-libshveu allows both synchronous and asynchronous access to the VEU. The
-synchronous API provides a one-shot function shveu_operation(). The asychronous
-API replaces this with a similar but non-blocking function, shveu_start_locked(),
-and a corresponding shveu_wait().
+libshveu provides simple scale and rotate capability via the shveu_resize and
+shveu_rotate blocking functions.
+	veu = shveu_open()
+	do {
+		shveu_resize(veu, ...);
+	} while (processing);
+	shveu_close(veu);
+
+For more flexibility, such as operating on a selection of a larger frame the
+shveu_setup function can be used along with shveu_start and shveu_wait.
+	veu = shveu_open()
+	do {
+		shveu_setup(veu, ...);
+		shveu_start(veu);
+		shveu_wait(veu);
+	} while (processing);
+	shveu_close(veu);
+
+For low latency and reduced memory use, bundle mode is supported via the
+shveu_start_bundle function. Using this mode requires that the input and output
+buffer addresses are updated before the start of the next bundle.
+	veu = shveu_open()
+	do {
+		shveu_setup(veu, ...);
+		do {
+			shveu_set_src(veu, ...);
+			shveu_set_dst(veu, ...);
+			shveu_start_bundle(veu, ...);
+			end = shveu_wait(veu);
+		} while (!end);
+	} while (processing);
+	shveu_close(veu);
 
 Please see doc/libshveu/html/index.html for API details.
 
