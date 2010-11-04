@@ -18,10 +18,92 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston MA  02110-1301 USA
  */
 
+/* Common information for SH video buffers */
+#ifndef __SH_VIDEO_BUFFER_H__
+#define __SH_VIDEO_BUFFER_H__
+
+/** Surface formats */
+typedef enum {
+	SH_NV12,			/**< YUV420: Y plane, packed CbCr plane */
+	SH_NV16,			/**< YUV422: Y plane, packed CbCr plane */
+	SH_RGB565,			/**< Packed RGB565 */
+	SH_RGB24,			/**< Packed RGB888 */
+	SH_RGB32,			/**< Packed XRGB8888 (most significant byte ignored)*/
+	SH_UNKNOWN,
+} sh_vid_format_t;
+
+
+/** Bounding rectange */
+struct sh_vid_rect {
+	int x;           	/**< Offset from left in pixels */
+	int y;           	/**< Offset from top in pixels */
+	int w;           	/**< Width of surface in pixels */
+	int h;           	/**< Height of surface in pixels */
+};
+
+/** Surface */
+struct sh_vid_surface {
+	sh_vid_format_t format; 	/**< Surface format */
+	int w;           	/**< Width of surface in pixels */
+	int h;           	/**< Height of surface in pixels */
+	unsigned long py;	/**< Address of Y or RGB plane */
+	unsigned long pc;	/**< Address of CbCr plane (ignored for RGB) */
+	unsigned long pa;	/**< Address of Alpha plane */
+};
+
+
+struct format_info {
+	sh_vid_format_t fmt;
+	int y_bpp;
+	int c_bpp_n;	/* numerator */
+	int c_bpp_d;	/* denominator */
+};
+
+static const struct format_info fmts[] = {
+	{ SH_NV12,   1, 1, 2 },
+	{ SH_NV16,   1, 1, 1 },
+	{ SH_RGB565, 2, 0, 1 },
+	{ SH_RGB24,  3, 0, 1 },
+	{ SH_RGB32,  4, 0, 1 },
+};
+
+static int is_ycbcr(sh_vid_format_t fmt)
+{
+	if (fmt <= SH_NV16)
+		return 1;
+	return 0;
+}
+
+static int is_rgb(sh_vid_format_t fmt)
+{
+	if (fmt >= SH_RGB565 && fmt <= SH_RGB32)
+		return 1;
+	return 0;
+}
+
+static int different_colorspace(sh_vid_format_t fmt1, sh_vid_format_t fmt2)
+{
+	if ((is_rgb(fmt1) && is_ycbcr(fmt2))
+	    || (is_ycbcr(fmt1) && is_rgb(fmt2)))
+		return 1;
+	return 0;
+}
+
+static int size_py(sh_vid_format_t fmt, int nr_pixels)
+{
+	return (fmts[fmt].y_bpp * nr_pixels);
+}
+
+static int size_pc(sh_vid_format_t fmt, int nr_pixels)
+{
+	return (fmts[fmt].c_bpp_n * nr_pixels) / fmts[fmt].c_bpp_d;
+}
+
+#endif /* __SH_VIDEO_BUFFER_H__ */
+
+
 /** \file
  * Image/Video processing: Scale, rotate, crop, color conversion
- * Note: When using SH_RGB32 format, the data it treated as XRGB888,
- * i.e. the most significant byte is ignored.
  */
 
 #ifndef __VEU_COLORSPACE_H__
@@ -33,34 +115,6 @@ typedef enum {
 	SHVEU_NO_ROT=0,	/**< No rotation */
 	SHVEU_ROT_90,	/**< Rotate 90 degrees clockwise */
 } shveu_rotation_t;
-
-/** Surface formats */
-typedef enum {
-	SH_NV12,
-	SH_NV16,
-	SH_RGB565,
-	SH_RGB24,
-	SH_RGB32,
-	SH_UNKNOWN,
-} shveu_format_t;
-
-
-/** Bounding rectange */
-struct shveu_rect {
-	int x;           	/**< Offset from left in pixels */
-	int y;           	/**< Offset from top in pixels */
-	int w;           	/**< Width of surface in pixels */
-	int h;           	/**< Height of surface in pixels */
-};
-
-/** Surface */
-struct shveu_surface {
-	shveu_format_t format; 	/**< Surface format */
-	int w;           	/**< Width of surface in pixels */
-	int h;           	/**< Height of surface in pixels */
-	unsigned long py;	/**< Address of Y or RGB plane */
-	unsigned long pc;	/**< Address of CbCr plane (ignored for RGB) */
-};
 
 /** Setup a (scale|rotate) & crop between YCbCr & RGB surfaces
  * The scaling factor is calculated from the selection sizes. Therefore, if
@@ -79,10 +133,10 @@ struct shveu_surface {
 int
 shveu_setup(
 	SHVEU *veu,
-	const struct shveu_surface *src_surface,
-	const struct shveu_surface *dst_surface,
-	const struct shveu_rect *src_selection,
-	const struct shveu_rect *dst_selection,
+	const struct sh_vid_surface *src_surface,
+	const struct sh_vid_surface *dst_surface,
+	const struct sh_vid_rect *src_selection,
+	const struct sh_vid_rect *dst_selection,
 	shveu_rotation_t rotate);
 
 
@@ -143,8 +197,8 @@ shveu_wait(SHVEU *veu);
 int
 shveu_resize(
 	SHVEU *veu,
-	const struct shveu_surface *src_surface,
-	const struct shveu_surface *dst_surface);
+	const struct sh_vid_surface *src_surface,
+	const struct sh_vid_surface *dst_surface);
 
 /** Perform rotate between YCbCr & RGB surfaces
  * This operates on entire surfaces and blocks until completion.
@@ -159,8 +213,8 @@ shveu_resize(
 int
 shveu_rotate(
 	SHVEU *veu,
-	const struct shveu_surface *src_surface,
-	const struct shveu_surface *dst_surface,
+	const struct sh_vid_surface *src_surface,
+	const struct sh_vid_surface *dst_surface,
 	shveu_rotation_t rotate);
 
 #endif				/* __VEU_COLORSPACE_H__ */

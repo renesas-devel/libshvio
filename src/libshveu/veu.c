@@ -35,23 +35,19 @@
 #include "shveu/shveu.h"
 #include "shveu_regs.h"
 
-struct format_info {
-	shveu_format_t fmt;
-	int is_rgb;
-	int y_bpp;
-	int c_bpp_n;	/* numerator */
-	int c_bpp_d;	/* denominator */
+struct veu_format_info {
+	sh_vid_format_t fmt;
 	unsigned long vtrcr_src;
 	unsigned long vtrcr_dst;
 	unsigned long vswpr;
 };
 
-static const struct format_info fmts[] = {
-	{ SH_NV12,   0, 1, 1, 2, VTRCR_SRC_FMT_YCBCR420, VTRCR_DST_FMT_YCBCR420, 7 },
-	{ SH_NV16,   0, 1, 1, 1, VTRCR_SRC_FMT_YCBCR422, VTRCR_DST_FMT_YCBCR422, 7 },
-	{ SH_RGB565, 1, 2, 0, 1, VTRCR_SRC_FMT_RGB565,   VTRCR_DST_FMT_RGB565,   6 },
-	{ SH_RGB24,  1, 3, 0, 1, VTRCR_SRC_FMT_RGB888,   VTRCR_DST_FMT_RGB888,   7 },
-	{ SH_RGB32,  1, 4, 0, 1, VTRCR_SRC_FMT_RGBX888,  VTRCR_DST_FMT_RGBX888,  4 },
+static const struct veu_format_info veu_fmts[] = {
+	{ SH_NV12,   VTRCR_SRC_FMT_YCBCR420, VTRCR_DST_FMT_YCBCR420, 7 },
+	{ SH_NV16,   VTRCR_SRC_FMT_YCBCR422, VTRCR_DST_FMT_YCBCR422, 7 },
+	{ SH_RGB565, VTRCR_SRC_FMT_RGB565,   VTRCR_DST_FMT_RGB565,   6 },
+	{ SH_RGB24,  VTRCR_SRC_FMT_RGB888,   VTRCR_DST_FMT_RGB888,   7 },
+	{ SH_RGB32,  VTRCR_SRC_FMT_RGBX888,  VTRCR_DST_FMT_RGBX888,  4 },
 };
 
 struct uio_map {
@@ -66,14 +62,14 @@ struct SHVEU {
 };
 
 
-static const struct format_info *fmt_info(shveu_format_t format)
+static const struct veu_format_info *fmt_info(sh_vid_format_t format)
 {
 	int i, nr_fmts;
 
-	nr_fmts = sizeof(fmts) / sizeof(fmts[0]);
+	nr_fmts = sizeof(veu_fmts) / sizeof(veu_fmts[0]);
 	for (i=0; i<nr_fmts; i++) {
-		if (fmts[i].fmt == format)
-			return &fmts[i];
+		if (veu_fmts[i].fmt == format)
+			return &veu_fmts[i];
 	}
 	return NULL;
 }
@@ -193,9 +189,9 @@ set_clip(struct uio_map *ump, int vertical, int clip_out)
 
 static void
 limit_selection(
-	const struct shveu_surface *surface,
-	const struct shveu_rect *sel,
-	struct shveu_rect *new_sel)
+	const struct sh_vid_surface *surface,
+	const struct sh_vid_rect *sel,
+	struct sh_vid_rect *new_sel)
 {
 	new_sel->x = sel->x;
 	new_sel->y = sel->y;
@@ -215,53 +211,26 @@ limit_selection(
 
 static unsigned long
 offset_py(
-	const struct shveu_surface *surface,
-	const struct format_info *info,
-	const struct shveu_rect *sel)
+	const struct sh_vid_surface *surface,
+	const struct sh_vid_rect *sel)
 {
 	int offset = (sel->y * surface->w) + sel->x;
-	return surface->py + info->y_bpp * offset;
+	return surface->py + size_py(surface->format, offset);
 }
 
 static unsigned long
 offset_pc(
-	const struct shveu_surface *surface,
-	const struct format_info *info,
-	const struct shveu_rect *sel)
+	const struct sh_vid_surface *surface,
+	const struct sh_vid_rect *sel)
 {
 	int offset = (sel->y * surface->w) + sel->x;
-	return surface->pc + (info->c_bpp_n * offset) / info->c_bpp_d;
+	return surface->pc + size_pc(surface->format, offset);
 }
 
-static int format_supported(shveu_format_t fmt)
+static int format_supported(sh_vid_format_t fmt)
 {
-	const struct format_info *info = fmt_info(fmt);
+	const struct veu_format_info *info = fmt_info(fmt);
 	if (info)
-		return 1;
-	return 0;
-}
-
-static int is_ycbcr(shveu_format_t fmt)
-{
-	const struct format_info *info = fmt_info(fmt);
-	if (!info->is_rgb)
-		return 1;
-	return 0;
-}
-
-static int is_rgb(shveu_format_t fmt)
-{
-	const struct format_info *info = fmt_info(fmt);
-	if (info->is_rgb)
-		return 1;
-	return 0;
-}
-
-static int different_colorspace(shveu_format_t fmt1, shveu_format_t fmt2)
-{
-	const struct format_info *info1 = fmt_info(fmt1);
-	const struct format_info *info2 = fmt_info(fmt2);
-	if (info1->is_rgb != info2->is_rgb)
 		return 1;
 	return 0;
 }
@@ -305,22 +274,22 @@ void shveu_close(SHVEU *veu)
 int
 shveu_setup(
 	SHVEU *veu,
-	const struct shveu_surface *src_surface,
-	const struct shveu_surface *dst_surface,
-	const struct shveu_rect *src_selection,
-	const struct shveu_rect *dst_selection,
+	const struct sh_vid_surface *src_surface,
+	const struct sh_vid_surface *dst_surface,
+	const struct sh_vid_rect *src_selection,
+	const struct sh_vid_rect *dst_selection,
 	shveu_rotation_t rotate)
 {
 	struct uio_map *ump = &veu->uio_mmio;
 	float scale_x, scale_y;
 	unsigned long temp;
-	struct shveu_rect default_src_selection = {
+	struct sh_vid_rect default_src_selection = {
 		.x = 0,
 		.y = 0,
 		.w = src_surface->w,
 		.h = src_surface->h,
 	};
-	struct shveu_rect default_dst_selection = {
+	struct sh_vid_rect default_dst_selection = {
 		.x = 0,
 		.y = 0,
 		.w = dst_surface->w,
@@ -329,10 +298,10 @@ shveu_setup(
 	int src_w, src_h;
 	int dst_w, dst_h;
 	unsigned long py, pc;
-	struct shveu_rect new_src_selection;
-	struct shveu_rect new_dst_selection;
-	const struct format_info *src_info = fmt_info(src_surface->format);
-	const struct format_info *dst_info = fmt_info(dst_surface->format);
+	struct sh_vid_rect new_src_selection;
+	struct sh_vid_rect new_dst_selection;
+	const struct veu_format_info *src_info = fmt_info(src_surface->format);
+	const struct veu_format_info *dst_info = fmt_info(dst_surface->format);
 
 	/* Use default selections if not provided */
 	if (!src_selection)
@@ -376,30 +345,29 @@ shveu_setup(
 
 	/* source */
 	limit_selection(src_surface, src_selection, &new_src_selection);
-	py = offset_py(src_surface, src_info, &new_src_selection);
-	pc = offset_pc(src_surface, src_info, &new_src_selection);
+	py = offset_py(src_surface, &new_src_selection);
+	pc = offset_pc(src_surface, &new_src_selection);
 	write_reg(ump, py, VSAYR);
 	write_reg(ump, pc, VSACR);
 
 	write_reg(ump, (new_src_selection.h << 16) | new_src_selection.w, VESSR);
 
 	/* memory pitch in bytes */
-	temp = src_surface->w * src_info->y_bpp;
+	temp = size_py(src_surface->format, src_surface->w);
 	write_reg(ump, temp, VESWR);
 
 
 	/* destination */
 	limit_selection(dst_surface, dst_selection, &new_dst_selection);
-	py = offset_py(dst_surface, dst_info, &new_dst_selection);
-	pc = offset_pc(dst_surface, dst_info, &new_dst_selection);
+	py = offset_py(dst_surface, &new_dst_selection);
+	pc = offset_pc(dst_surface, &new_dst_selection);
 
 	if (rotate) {
 		int src_vblk  = (new_src_selection.h+15)/16;
 		int src_sidev = (new_src_selection.h+15)%16 + 1;
-		int dst_density = dst_info->y_bpp;
 		int offset;
 
-		offset = ((src_vblk-2)*16 + src_sidev) * dst_density;
+		offset = size_py(dst_surface->format, ((src_vblk-2)*16 + src_sidev));
 		py += offset;
 		pc += offset;
 	}
@@ -407,7 +375,7 @@ shveu_setup(
 	write_reg(ump, pc, VDACR);
 
 	/* memory pitch in bytes */
-	temp = dst_surface->w * dst_info->y_bpp;
+	temp = size_py(dst_surface->format, dst_surface->w);
 	write_reg(ump, temp, VEDWR);
 
 	/* byte/word swapping */
@@ -538,8 +506,8 @@ shveu_wait(SHVEU *veu)
 int
 shveu_resize(
 	SHVEU *veu,
-	const struct shveu_surface *src_surface,
-	const struct shveu_surface *dst_surface)
+	const struct sh_vid_surface *src_surface,
+	const struct sh_vid_surface *dst_surface)
 {
 	int ret;
 
@@ -557,8 +525,8 @@ shveu_resize(
 int
 shveu_rotate(
 	SHVEU *veu,
-	const struct shveu_surface *src_surface,
-	const struct shveu_surface *dst_surface,
+	const struct sh_vid_surface *src_surface,
+	const struct sh_vid_surface *dst_surface,
 	shveu_rotation_t rotate)
 {
 	int ret;

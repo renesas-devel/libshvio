@@ -281,9 +281,9 @@ static void scale(
 	int lcd_h = display_get_height(display);
 	int scaled_w = (int) (w * scale);
 	int scaled_h = (int) (h * scale);
-	struct shveu_surface src_surface;
-	struct shveu_surface dst_surface;
-	struct shveu_rect dst_selection;
+	struct sh_vid_surface src_surface;
+	struct sh_vid_surface dst_surface;
+	struct sh_vid_rect dst_selection;
 
 	/* Clear the back buffer */
 	draw_rect_rgb565(bb_virt, BLACK, 0, 0, lcd_w, lcd_h, lcd_w);

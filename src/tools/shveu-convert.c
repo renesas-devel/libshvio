@@ -109,7 +109,7 @@ static const char * show_size (int w, int h)
 
 struct extensions_t {
 	const char *ext;
-	shveu_format_t fmt;
+	sh_vid_format_t fmt;
 };
 
 static const struct extensions_t exts[] = {
@@ -128,7 +128,7 @@ static const struct extensions_t exts[] = {
 	{ "NV16",     SH_NV16 },
 };
 
-static int set_colorspace (char * arg, shveu_format_t * c)
+static int set_colorspace (char * arg, sh_vid_format_t * c)
 {
 	int nr_exts = sizeof(exts) / sizeof(exts[0]);
 	int i;
@@ -146,7 +146,7 @@ static int set_colorspace (char * arg, shveu_format_t * c)
 	return -1;
 }
 
-static const char * show_colorspace (shveu_format_t c)
+static const char * show_colorspace (sh_vid_format_t c)
 {
 	int nr_exts = sizeof(exts) / sizeof(exts[0]);
 	int i;
@@ -186,7 +186,7 @@ static off_t filesize (char * filename)
 	return statbuf.st_size;
 }
 
-static off_t imgsize (shveu_format_t colorspace, int w, int h)
+static off_t imgsize (sh_vid_format_t colorspace, int w, int h)
 {
 	int n=0, d=1;
 
@@ -215,7 +215,7 @@ static off_t imgsize (shveu_format_t colorspace, int w, int h)
 	return (off_t)(w*h*n/d);
 }
 
-static int guess_colorspace (char * filename, shveu_format_t * c)
+static int guess_colorspace (char * filename, sh_vid_format_t * c)
 {
 	char * ext;
 
@@ -232,7 +232,7 @@ static int guess_colorspace (char * filename, shveu_format_t * c)
 	return set_colorspace(ext+1, c);
 }
 
-static int guess_size (char * filename, shveu_format_t colorspace, int * w, int * h)
+static int guess_size (char * filename, sh_vid_format_t colorspace, int * w, int * h)
 {
 	off_t size;
 
@@ -268,8 +268,8 @@ int main (int argc, char * argv[])
 	size_t input_size, output_size;
 	unsigned char * src_virt, * dest_virt;
 	SHVEU *veu;
-	struct shveu_surface src;
-	struct shveu_surface dst;
+	struct sh_vid_surface src;
+	struct sh_vid_surface dst;
 	int ret;
 	int frameno=0;
 
