@@ -179,31 +179,7 @@ static off_t filesize (char * filename)
 
 static off_t imgsize (int colorspace, int w, int h)
 {
-	int n=0, d=1;
-
-	switch (colorspace) {
-	case SH_RGB32:
-		/* 4 bytes per pixel */
-		n=4; d=1;
-		break;
-	case SH_RGB24:
-		/* 3 bytes per pixel */
-		n=3; d=1;
-		break;
-	case SH_RGB565:
-	case SH_NV16:
-		/* 2 bytes per pixel */
-		n=2; d=1;
-	       	break;
-       case SH_NV12:
-		/* 3/2 bytes per pixel */
-		n=3; d=2;
-		break;
-       default:
-		return -1;
-	}
-
-	return (off_t)(w*h*n/d);
+	return (off_t)(size_y(colorspace, w*h) + size_c(colorspace, w*h));
 }
 
 static int guess_colorspace (char * filename, int * c)

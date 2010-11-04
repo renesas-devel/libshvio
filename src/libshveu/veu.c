@@ -218,7 +218,7 @@ offset_py(
 	int offset = (sel->y * surface->w) + sel->x;
 	phys = uiomux_all_virt_to_phys(surface->py);
 	if (phys)
-		phys += size_py(surface->format, offset); 
+		phys += size_y(surface->format, offset);
 	return phys;
 }
 
@@ -231,7 +231,7 @@ offset_pc(
 	int offset = (sel->y * surface->w) + sel->x;
 	phys = uiomux_all_virt_to_phys(surface->pc);
 	if (phys)
-		phys += size_pc(surface->format, offset); 
+		phys += size_c(surface->format, offset);
 	return phys;
 }
 
@@ -361,7 +361,7 @@ shveu_setup(
 	write_reg(ump, (new_src_selection.h << 16) | new_src_selection.w, VESSR);
 
 	/* memory pitch in bytes */
-	temp = size_py(src_surface->format, src_surface->w);
+	temp = size_y(src_surface->format, src_surface->w);
 	write_reg(ump, temp, VESWR);
 
 
@@ -375,7 +375,7 @@ shveu_setup(
 		int src_sidev = (new_src_selection.h+15)%16 + 1;
 		int offset;
 
-		offset = size_py(dst_surface->format, ((src_vblk-2)*16 + src_sidev));
+		offset = size_y(dst_surface->format, ((src_vblk-2)*16 + src_sidev));
 		py += offset;
 		pc += offset;
 	}
@@ -383,7 +383,7 @@ shveu_setup(
 	write_reg(ump, pc, VDACR);
 
 	/* memory pitch in bytes */
-	temp = size_py(dst_surface->format, dst_surface->w);
+	temp = size_y(dst_surface->format, dst_surface->w);
 	write_reg(ump, temp, VEDWR);
 
 	/* byte/word swapping */

@@ -47,12 +47,11 @@ struct sh_vid_rect {
 struct sh_vid_surface {
 	sh_vid_format_t format; /**< Surface format */
 	int w;      /**< Width of surface in pixels */
-	int h;   	/**< Height of surface in pixels */
+	int h;      /**< Height of surface in pixels */
 	void *py;   /**< Address of Y or RGB plane */
 	void *pc;   /**< Address of CbCr plane (ignored for RGB) */
 	void *pa;   /**< Address of Alpha plane */
 };
-
 
 struct format_info {
 	sh_vid_format_t fmt;
@@ -94,12 +93,12 @@ static inline int different_colorspace(sh_vid_format_t fmt1, sh_vid_format_t fmt
 	return 0;
 }
 
-static inline int size_py(sh_vid_format_t fmt, int nr_pixels)
+static inline int size_y(sh_vid_format_t fmt, int nr_pixels)
 {
 	return (fmts[fmt].y_bpp * nr_pixels);
 }
 
-static inline int size_pc(sh_vid_format_t fmt, int nr_pixels)
+static inline int size_c(sh_vid_format_t fmt, int nr_pixels)
 {
 	return (fmts[fmt].c_bpp_n * nr_pixels) / fmts[fmt].c_bpp_d;
 }
