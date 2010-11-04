@@ -25,10 +25,8 @@
 /** Surface formats */
 typedef enum {
 	SH_UNKNOWN,
-	SH_NV12,			/**< YUV420: Y plane, packed CbCr plane */
-	SH_NV16,			/**< YUV422: Y plane, packed CbCr plane */
-	SH_ANV12,			/**< YUV420: Y plane, packed CbCr plane, alpha plane */
-	SH_ANV16,			/**< YUV422: Y plane, packed CbCr plane, alpha plane */
+	SH_NV12,			/**< YUV420: Y plane, packed CbCr plane, optional alpha plane */
+	SH_NV16,			/**< YUV422: Y plane, packed CbCr plane, optional alpha plane */
 	SH_RGB565,			/**< Packed RGB565 */
 	SH_RGB24,			/**< Packed RGB888 */
 	SH_BGR24,			/**< Packed BGR888 */
@@ -67,8 +65,6 @@ static const struct format_info fmts[] = {
 	{ SH_UNKNOWN, 0, 0, 1 },
 	{ SH_NV12,   1, 1, 2 },
 	{ SH_NV16,   1, 1, 1 },
-	{ SH_ANV12,  1, 1, 2 },
-	{ SH_ANV16,  1, 1, 1 },
 	{ SH_RGB565, 2, 0, 1 },
 	{ SH_RGB24,  3, 0, 1 },
 	{ SH_BGR24,  3, 0, 1 },
@@ -78,7 +74,7 @@ static const struct format_info fmts[] = {
 
 static inline int is_ycbcr(sh_vid_format_t fmt)
 {
-	if (fmt >= SH_NV12 && fmt <= SH_ANV16)
+	if (fmt >= SH_NV12 && fmt <= SH_NV16)
 		return 1;
 	return 0;
 }
