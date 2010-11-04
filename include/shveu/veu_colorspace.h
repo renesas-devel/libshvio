@@ -76,21 +76,21 @@ static const struct format_info fmts[] = {
 	{ SH_ARGB32, 4, 0, 1 },
 };
 
-static int is_ycbcr(sh_vid_format_t fmt)
+static inline int is_ycbcr(sh_vid_format_t fmt)
 {
 	if (fmt >= SH_NV12 && fmt <= SH_ANV16)
 		return 1;
 	return 0;
 }
 
-static int is_rgb(sh_vid_format_t fmt)
+static inline int is_rgb(sh_vid_format_t fmt)
 {
 	if (fmt >= SH_RGB565 && fmt <= SH_ARGB32)
 		return 1;
 	return 0;
 }
 
-static int different_colorspace(sh_vid_format_t fmt1, sh_vid_format_t fmt2)
+static inline int different_colorspace(sh_vid_format_t fmt1, sh_vid_format_t fmt2)
 {
 	if ((is_rgb(fmt1) && is_ycbcr(fmt2))
 	    || (is_ycbcr(fmt1) && is_rgb(fmt2)))
@@ -98,12 +98,12 @@ static int different_colorspace(sh_vid_format_t fmt1, sh_vid_format_t fmt2)
 	return 0;
 }
 
-static int size_py(sh_vid_format_t fmt, int nr_pixels)
+static inline int size_py(sh_vid_format_t fmt, int nr_pixels)
 {
 	return (fmts[fmt].y_bpp * nr_pixels);
 }
 
-static int size_pc(sh_vid_format_t fmt, int nr_pixels)
+static inline int size_pc(sh_vid_format_t fmt, int nr_pixels)
 {
 	return (fmts[fmt].c_bpp_n * nr_pixels) / fmts[fmt].c_bpp_d;
 }
