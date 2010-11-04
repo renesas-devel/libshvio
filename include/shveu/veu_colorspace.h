@@ -24,12 +24,16 @@
 
 /** Surface formats */
 typedef enum {
+	SH_UNKNOWN,
 	SH_NV12,			/**< YUV420: Y plane, packed CbCr plane */
 	SH_NV16,			/**< YUV422: Y plane, packed CbCr plane */
+	SH_ANV12,			/**< YUV420: Y plane, packed CbCr plane, alpha plane */
+	SH_ANV16,			/**< YUV422: Y plane, packed CbCr plane, alpha plane */
 	SH_RGB565,			/**< Packed RGB565 */
 	SH_RGB24,			/**< Packed RGB888 */
-	SH_RGB32,			/**< Packed XRGB8888 (most significant byte ignored)*/
-	SH_UNKNOWN,
+	SH_BGR24,			/**< Packed BGR888 */
+	SH_RGB32,			/**< Packed XRGB8888 (most significant byte ignored) */
+	SH_ARGB32,			/**< Packed ARGB8888 */
 } sh_vid_format_t;
 
 
@@ -60,23 +64,28 @@ struct format_info {
 };
 
 static const struct format_info fmts[] = {
+	{ SH_UNKNOWN, 0, 0, 1 },
 	{ SH_NV12,   1, 1, 2 },
 	{ SH_NV16,   1, 1, 1 },
+	{ SH_ANV12,  1, 1, 2 },
+	{ SH_ANV16,  1, 1, 1 },
 	{ SH_RGB565, 2, 0, 1 },
 	{ SH_RGB24,  3, 0, 1 },
+	{ SH_BGR24,  3, 0, 1 },
 	{ SH_RGB32,  4, 0, 1 },
+	{ SH_ARGB32, 4, 0, 1 },
 };
 
 static int is_ycbcr(sh_vid_format_t fmt)
 {
-	if (fmt <= SH_NV16)
+	if (fmt >= SH_NV12 && fmt <= SH_ANV16)
 		return 1;
 	return 0;
 }
 
 static int is_rgb(sh_vid_format_t fmt)
 {
-	if (fmt >= SH_RGB565 && fmt <= SH_RGB32)
+	if (fmt >= SH_RGB565 && fmt <= SH_ARGB32)
 		return 1;
 	return 0;
 }
