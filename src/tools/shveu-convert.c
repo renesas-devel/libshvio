@@ -266,7 +266,6 @@ int main (int argc, char * argv[])
 	FILE * infile, * outfile = NULL;
 	size_t nread;
 	size_t input_size, output_size;
-	unsigned char * src_virt, * dest_virt;
 	SHVEU *veu;
 	struct sh_vid_surface src;
 	struct sh_vid_surface dst;
@@ -440,16 +439,14 @@ int main (int argc, char * argv[])
 	uiomux = uiomux_open ();
 
 	/* Set up memory buffers */
-	src_virt = uiomux_malloc (uiomux, UIOMUX_SH_VEU, input_size, 32);
-	src.py = uiomux_virt_to_phys (uiomux, UIOMUX_SH_VEU, src_virt);
+	src.py = uiomux_malloc (uiomux, UIOMUX_SH_VEU, input_size, 32);
 	if (src.format == SH_RGB565) {
 		src.pc = 0;
 	} else {
 		src.pc = src.py + (src.w * src.h);
 	}
 
-	dest_virt = uiomux_malloc (uiomux, UIOMUX_SH_VEU, output_size, 32);
-	dst.py = uiomux_virt_to_phys (uiomux, UIOMUX_SH_VEU, dest_virt);
+	dst.py = uiomux_malloc (uiomux, UIOMUX_SH_VEU, output_size, 32);
 	if (dst.format == SH_RGB565) {
 		dst.pc = 0;
 	} else {
@@ -491,7 +488,7 @@ int main (int argc, char * argv[])
 #endif
 
 		/* Read input */
-		if ((nread = fread (src_virt, 1, input_size, infile)) != input_size) {
+		if ((nread = fread (src.py, 1, input_size, infile)) != input_size) {
 			if (nread == 0 && feof (infile)) {
 				break;
 			} else {
@@ -507,7 +504,7 @@ int main (int argc, char * argv[])
 		}
 
 		/* Write output */
-		if (outfile && fwrite (dest_virt, 1, output_size, outfile) != output_size) {
+		if (outfile && fwrite (dst.py, 1, output_size, outfile) != output_size) {
 				fprintf (stderr, "%s: error writing input file %s\n",
 					 progname, outfilename);
 		}
@@ -517,8 +514,8 @@ int main (int argc, char * argv[])
 
 	shveu_close (veu);
 
-	uiomux_free (uiomux, UIOMUX_SH_VEU, src_virt, input_size);
-	uiomux_free (uiomux, UIOMUX_SH_VEU, dest_virt, output_size);
+	uiomux_free (uiomux, UIOMUX_SH_VEU, src.py, input_size);
+	uiomux_free (uiomux, UIOMUX_SH_VEU, dst.py, output_size);
 	uiomux_close (uiomux);
 
 	if (infile != stdin) fclose (infile);

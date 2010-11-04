@@ -267,8 +267,8 @@ static void scale(
 	SHVEU *veu,
 	DISPLAY *display,
 	float scale,
-	unsigned long py,
-	unsigned long pc,
+	void *py,
+	void *pc,
 	unsigned long w,
 	unsigned long h,
 	unsigned long x,	/* Centre co-ordinates */
@@ -276,7 +276,6 @@ static void scale(
 	int src_fmt)
 {
 	unsigned char *bb_virt = display_get_back_buff_virt(display);
-	unsigned long  bb_phys = display_get_back_buff_phys(display);
 	int lcd_w = display_get_width(display);
 	int lcd_h = display_get_height(display);
 	int scaled_w = (int) (w * scale);
@@ -295,7 +294,7 @@ static void scale(
 	src_surface.h = h;
 
 	dst_surface.format = SH_RGB565;
-	dst_surface.py = bb_phys;
+	dst_surface.py = bb_virt;
 	dst_surface.pc = 0;
 	dst_surface.w = lcd_w;
 	dst_surface.h = lcd_h;
@@ -320,10 +319,10 @@ static void scale(
 
 		while (end == 0) {
 			shveu_set_src(veu, py, pc);
-			shveu_set_dst(veu, bb_phys, 0);
+			shveu_set_dst(veu, bb_virt, 0);
 			py += nr_lines * w * 1;
 			pc += nr_lines * w / 2;
-			bb_phys += nr_lines * lcd_w * 2;
+			bb_virt += nr_lines * lcd_w * 2;
 			shveu_start_bundle(veu, nr_lines);
 			end = shveu_wait(veu);
 		}
@@ -350,7 +349,7 @@ int main (int argc, char * argv[])
 	int input_h = -1;
 	int input_colorspace = -1;
 	unsigned char *src_virt;
-	unsigned long src_py, src_pc;
+	void *src_py, *src_pc;
 	int ret;
 	float scale_factor=1.0;
 	int read_image = 1;
@@ -487,19 +486,18 @@ int main (int argc, char * argv[])
 
 
 	/* Set up memory buffers */
-	src_virt = uiomux_malloc (uiomux, UIOMUX_SH_VEU, input_size, 32);
-	if (!src_virt) {
+	src_py = uiomux_malloc (uiomux, UIOMUX_SH_VEU, input_size, 32);
+	if (!src_py) {
 		perror("uiomux_malloc");
 		goto exit_err;
 	}
-	src_py = uiomux_virt_to_phys (uiomux, UIOMUX_SH_VEU, src_virt);
 	src_pc = src_py + (input_w * input_h);
 
 	if (!infilename) {
 		/* Draw a simple picture */
-		draw_rect_rgb565(src_virt, BLACK, 0,         0,         input_w,   input_h,   input_w);
-		draw_rect_rgb565(src_virt, BLUE,  input_w/4, input_h/4, input_w/4, input_h/2, input_w);
-		draw_rect_rgb565(src_virt, RED,   input_w/2, input_h/4, input_w/4, input_h/2, input_w);
+		draw_rect_rgb565(src_py, BLACK, 0,         0,         input_w,   input_h,   input_w);
+		draw_rect_rgb565(src_py, BLUE,  input_w/4, input_h/4, input_w/4, input_h/2, input_w);
+		draw_rect_rgb565(src_py, RED,   input_w/2, input_h/4, input_w/4, input_h/2, input_w);
 	}
 
 
@@ -516,7 +514,7 @@ int main (int argc, char * argv[])
 		if (infilename && read_image) {
 			read_image = 0;
 			/* Read input */
-			if ((nread = fread (src_virt, 1, input_size, infile)) != input_size) {
+			if ((nread = fread (src_py, 1, input_size, infile)) != input_size) {
 				if (nread == 0 && feof (infile)) {
 					break;
 				} else {
@@ -574,7 +572,7 @@ int main (int argc, char * argv[])
 
 	display_close(display);
 	shveu_close(veu);
-	uiomux_free (uiomux, UIOMUX_SH_VEU, src_virt, input_size);
+	uiomux_free (uiomux, UIOMUX_SH_VEU, src_py, input_size);
 	uiomux_close (uiomux);
 
 

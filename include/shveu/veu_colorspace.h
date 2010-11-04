@@ -25,32 +25,32 @@
 /** Surface formats */
 typedef enum {
 	SH_UNKNOWN,
-	SH_NV12,			/**< YUV420: Y plane, packed CbCr plane, optional alpha plane */
-	SH_NV16,			/**< YUV422: Y plane, packed CbCr plane, optional alpha plane */
-	SH_RGB565,			/**< Packed RGB565 */
-	SH_RGB24,			/**< Packed RGB888 */
-	SH_BGR24,			/**< Packed BGR888 */
-	SH_RGB32,			/**< Packed XRGB8888 (most significant byte ignored) */
-	SH_ARGB32,			/**< Packed ARGB8888 */
+	SH_NV12,    /**< YUV420: Y plane, packed CbCr plane, optional alpha plane */
+	SH_NV16,    /**< YUV422: Y plane, packed CbCr plane, optional alpha plane */
+	SH_RGB565,  /**< Packed RGB565 */
+	SH_RGB24,   /**< Packed RGB888 */
+	SH_BGR24,   /**< Packed BGR888 */
+	SH_RGB32,   /**< Packed XRGB8888 (most significant byte ignored) */
+	SH_ARGB32,  /**< Packed ARGB8888 */
 } sh_vid_format_t;
 
 
 /** Bounding rectange */
 struct sh_vid_rect {
-	int x;           	/**< Offset from left in pixels */
-	int y;           	/**< Offset from top in pixels */
-	int w;           	/**< Width of surface in pixels */
-	int h;           	/**< Height of surface in pixels */
+	int x;      /**< Offset from left in pixels */
+	int y;      /**< Offset from top in pixels */
+	int w;      /**< Width of surface in pixels */
+	int h;      /**< Height of surface in pixels */
 };
 
 /** Surface */
 struct sh_vid_surface {
-	sh_vid_format_t format; 	/**< Surface format */
-	int w;           	/**< Width of surface in pixels */
-	int h;           	/**< Height of surface in pixels */
-	unsigned long py;	/**< Address of Y or RGB plane */
-	unsigned long pc;	/**< Address of CbCr plane (ignored for RGB) */
-	unsigned long pa;	/**< Address of Alpha plane */
+	sh_vid_format_t format; /**< Surface format */
+	int w;      /**< Width of surface in pixels */
+	int h;   	/**< Height of surface in pixels */
+	void *py;   /**< Address of Y or RGB plane */
+	void *pc;   /**< Address of CbCr plane (ignored for RGB) */
+	void *pa;   /**< Address of Alpha plane */
 };
 
 
@@ -153,8 +153,8 @@ shveu_setup(
 void
 shveu_set_src(
 	SHVEU *veu,
-	unsigned long src_py,
-	unsigned long src_pc);
+	void *src_py,
+	void *src_pc);
 
 /** Set the destination addresses. This is typically used for bundle mode.
  * \param veu VEU handle
@@ -164,8 +164,8 @@ shveu_set_src(
 void
 shveu_set_dst(
 	SHVEU *veu,
-	unsigned long dst_py,
-	unsigned long dst_pc);
+	void *dst_py,
+	void *dst_pc);
 
 /** Start a VEU operation (non-bundle mode).
  * \param veu VEU handle

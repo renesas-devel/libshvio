@@ -214,8 +214,12 @@ offset_py(
 	const struct sh_vid_surface *surface,
 	const struct sh_vid_rect *sel)
 {
+	unsigned long phys;
 	int offset = (sel->y * surface->w) + sel->x;
-	return surface->py + size_py(surface->format, offset);
+	phys = uiomux_all_virt_to_phys(surface->py);
+	if (phys)
+		phys += size_py(surface->format, offset); 
+	return phys;
 }
 
 static unsigned long
@@ -223,8 +227,12 @@ offset_pc(
 	const struct sh_vid_surface *surface,
 	const struct sh_vid_rect *sel)
 {
+	unsigned long phys;
 	int offset = (sel->y * surface->w) + sel->x;
-	return surface->pc + size_pc(surface->format, offset);
+	phys = uiomux_all_virt_to_phys(surface->pc);
+	if (phys)
+		phys += size_pc(surface->format, offset); 
+	return phys;
 }
 
 static int format_supported(sh_vid_format_t fmt)
@@ -434,23 +442,31 @@ shveu_setup(
 void
 shveu_set_src(
 	SHVEU *veu,
-	unsigned long src_py,
-	unsigned long src_pc)
+	void *src_py,
+	void *src_pc)
 {
 	struct uio_map *ump = &veu->uio_mmio;
-	write_reg(ump, src_py, VSAYR);
-	write_reg(ump, src_pc, VSACR);
+	unsigned long Y, C;
+
+	Y = uiomux_all_virt_to_phys(src_py);
+	C = uiomux_all_virt_to_phys(src_pc);
+	write_reg(ump, Y, VSAYR);
+	write_reg(ump, C, VSACR);
 }
 
 void
 shveu_set_dst(
 	SHVEU *veu,
-	unsigned long dst_py,
-	unsigned long dst_pc)
+	void *dst_py,
+	void *dst_pc)
 {
 	struct uio_map *ump = &veu->uio_mmio;
-	write_reg(ump, dst_py, VDAYR);
-	write_reg(ump, dst_pc, VDACR);
+	unsigned long Y, C;
+
+	Y = uiomux_all_virt_to_phys(dst_py);
+	C = uiomux_all_virt_to_phys(dst_pc);
+	write_reg(ump, Y, VSAYR);
+	write_reg(ump, C, VSACR);
 }
 
 void
