@@ -37,18 +37,18 @@
 #include "shveu_regs.h"
 
 struct veu_format_info {
-	sh_vid_format_t fmt;
+	ren_vid_format_t fmt;
 	unsigned long vtrcr_src;
 	unsigned long vtrcr_dst;
 	unsigned long vswpr;
 };
 
 static const struct veu_format_info veu_fmts[] = {
-	{ SH_NV12,   VTRCR_SRC_FMT_YCBCR420, VTRCR_DST_FMT_YCBCR420, 7 },
-	{ SH_NV16,   VTRCR_SRC_FMT_YCBCR422, VTRCR_DST_FMT_YCBCR422, 7 },
-	{ SH_RGB565, VTRCR_SRC_FMT_RGB565,   VTRCR_DST_FMT_RGB565,   6 },
-	{ SH_RGB24,  VTRCR_SRC_FMT_RGB888,   VTRCR_DST_FMT_RGB888,   7 },
-	{ SH_RGB32,  VTRCR_SRC_FMT_RGBX888,  VTRCR_DST_FMT_RGBX888,  4 },
+	{ REN_NV12,   VTRCR_SRC_FMT_YCBCR420, VTRCR_DST_FMT_YCBCR420, 7 },
+	{ REN_NV16,   VTRCR_SRC_FMT_YCBCR422, VTRCR_DST_FMT_YCBCR422, 7 },
+	{ REN_RGB565, VTRCR_SRC_FMT_RGB565,   VTRCR_DST_FMT_RGB565,   6 },
+	{ REN_RGB24,  VTRCR_SRC_FMT_RGB888,   VTRCR_DST_FMT_RGB888,   7 },
+	{ REN_RGB32,  VTRCR_SRC_FMT_RGBX888,  VTRCR_DST_FMT_RGBX888,  4 },
 };
 
 struct uio_map {
@@ -60,14 +60,14 @@ struct uio_map {
 struct SHVEU {
 	UIOMux *uiomux;
 	struct uio_map uio_mmio;
-	struct sh_vid_surface src_user;
-	struct sh_vid_surface src_hw;
-	struct sh_vid_surface dst_user;
-	struct sh_vid_surface dst_hw;
+	struct ren_vid_surface src_user;
+	struct ren_vid_surface src_hw;
+	struct ren_vid_surface dst_user;
+	struct ren_vid_surface dst_hw;
 };
 
 
-static const struct veu_format_info *fmt_info(sh_vid_format_t format)
+static const struct veu_format_info *fmt_info(ren_vid_format_t format)
 {
 	int i, nr_fmts;
 
@@ -79,7 +79,7 @@ static const struct veu_format_info *fmt_info(sh_vid_format_t format)
 	return NULL;
 }
 
-static void dbg(const char *str1, int l, const char *str2, const struct sh_vid_surface *s)
+static void dbg(const char *str1, int l, const char *str2, const struct ren_vid_surface *s)
 {
 #if DEBUG
 	fprintf(stderr, "%s:%d: %s: (%dx%d) pitch=%d py=%p, pc=%p, pa=%p\n", str1, l, str2, s->w, s->h, s->pitch, s->py, s->pc, s->pa);
@@ -100,8 +100,8 @@ static void copy_plane(void *dst, void *src, int bpp, int h, int len, int dst_pi
 
 /* Copy active surface contents - assumes output is big enough */
 static void copy_surface(
-	struct sh_vid_surface *out,
-	const struct sh_vid_surface *in)
+	struct ren_vid_surface *out,
+	const struct ren_vid_surface *in)
 {
 	const struct format_info *fmt = &fmts[in->format];
 
@@ -119,8 +119,8 @@ static void copy_surface(
 /* Check/create surface that can be accessed by the hardware */
 static int get_hw_surface(
 	UIOMux * uiomux,
-	struct sh_vid_surface *out,
-	const struct sh_vid_surface *in)
+	struct ren_vid_surface *out,
+	const struct ren_vid_surface *in)
 {
 	unsigned long phys;
 	int y;
@@ -179,13 +179,13 @@ static void write_reg(struct uio_map *ump, unsigned long value, int reg_nr)
 	*reg = value;
 }
 
-static int sh_veu_is_veu2h(struct uio_map *ump)
+static int veu_is_veu2h(struct uio_map *ump)
 {
 	/* Is this a VEU2H on SH7723? */
 	return ump->size == 0x27c;
 }
 
-static int sh_veu_is_veu3f(struct uio_map *ump)
+static int veu_is_veu3f(struct uio_map *ump)
 {
 	return ump->size == 0xcc;
 }
@@ -201,7 +201,7 @@ static void set_scale(struct uio_map *ump, int vertical,
 	mant = fixpoint / 4096;
 	frac = fixpoint - (mant * 4096);
 
-	if (sh_veu_is_veu2h(ump)) {
+	if (veu_is_veu2h(ump)) {
 		if (frac & 0x07) {
 			frac &= ~0x07;
 
@@ -230,7 +230,7 @@ static void set_scale(struct uio_map *ump, int vertical,
 	write_reg(ump, value, VRFCR);
 
 	/* VEU3F needs additional VRPBR register handling */
-	if (sh_veu_is_veu3f(ump)) {
+	if (veu_is_veu3f(ump)) {
 		if (size_out >= size_in)
 			vb = 64;
 		else {
@@ -276,7 +276,7 @@ set_clip(struct uio_map *ump, int vertical, int clip_out)
 	write_reg(ump, value, VRFSR);
 }
 
-static int format_supported(sh_vid_format_t fmt)
+static int format_supported(ren_vid_format_t fmt)
 {
 	const struct veu_format_info *info = fmt_info(fmt);
 	if (info)
@@ -323,8 +323,8 @@ void shveu_close(SHVEU *veu)
 int
 shveu_setup(
 	SHVEU *veu,
-	const struct sh_vid_surface *src_surface,
-	const struct sh_vid_surface *dst_surface,
+	const struct ren_vid_surface *src_surface,
+	const struct ren_vid_surface *dst_surface,
 	shveu_rotation_t rotate)
 {
 	struct uio_map *ump = &veu->uio_mmio;
@@ -333,8 +333,8 @@ shveu_setup(
 	unsigned long Y, C;
 	const struct veu_format_info *src_info = fmt_info(src_surface->format);
 	const struct veu_format_info *dst_info = fmt_info(dst_surface->format);
-	struct sh_vid_surface *src = &veu->src_hw;
-	struct sh_vid_surface *dst = &veu->dst_hw;
+	struct ren_vid_surface *src = &veu->src_hw;
+	struct ren_vid_surface *dst = &veu->dst_hw;
 
 	/* scale factors */
 	scale_x = (float)dst_surface->w / src_surface->w;
@@ -344,7 +344,7 @@ shveu_setup(
 		return -1;
 
 	/* Scaling limits */
-	if (sh_veu_is_veu2h(ump)) {
+	if (veu_is_veu2h(ump)) {
 		if ((scale_x > 8.0) || (scale_y > 8.0))
 			return -1;
 	} else {
@@ -416,7 +416,7 @@ shveu_setup(
 		temp |= VTRCR_TE_BIT_SET;
 	write_reg(ump, temp, VTRCR);
 
-	if (sh_veu_is_veu2h(ump)) {
+	if (veu_is_veu2h(ump)) {
 		/* color conversion matrix */
 		write_reg(ump, 0x0cc5, VMCR00);
 		write_reg(ump, 0x0950, VMCR01);
@@ -563,8 +563,8 @@ shveu_wait(SHVEU *veu)
 int
 shveu_resize(
 	SHVEU *veu,
-	const struct sh_vid_surface *src_surface,
-	const struct sh_vid_surface *dst_surface)
+	const struct ren_vid_surface *src_surface,
+	const struct ren_vid_surface *dst_surface)
 {
 	int ret;
 
@@ -581,8 +581,8 @@ shveu_resize(
 int
 shveu_rotate(
 	SHVEU *veu,
-	const struct sh_vid_surface *src_surface,
-	const struct sh_vid_surface *dst_surface,
+	const struct ren_vid_surface *src_surface,
+	const struct ren_vid_surface *dst_surface,
 	shveu_rotation_t rotate)
 {
 	int ret;

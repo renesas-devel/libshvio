@@ -118,19 +118,19 @@ struct extensions_t {
 };
 
 static const struct extensions_t exts[] = {
-	{ "RGB565",   SH_RGB565 },
-	{ "rgb",      SH_RGB565 },
-	{ "RGB888",   SH_RGB24 },
-	{ "888",      SH_RGB24 },
-	{ "RGBx888",  SH_RGB32 },
-	{ "x888",     SH_RGB32 },
-	{ "YCbCr420", SH_NV12 },
-	{ "420",      SH_NV12 },
-	{ "yuv",      SH_NV12 },
-	{ "NV12",     SH_NV12 },
-	{ "YCbCr422", SH_NV16 },
-	{ "422",      SH_NV16 },
-	{ "NV16",     SH_NV16 },
+	{ "RGB565",   REN_RGB565 },
+	{ "rgb",      REN_RGB565 },
+	{ "RGB888",   REN_RGB24 },
+	{ "888",      REN_RGB24 },
+	{ "RGBx888",  REN_RGB32 },
+	{ "x888",     REN_RGB32 },
+	{ "YCbCr420", REN_NV12 },
+	{ "420",      REN_NV12 },
+	{ "yuv",      REN_NV12 },
+	{ "NV12",     REN_NV12 },
+	{ "YCbCr422", REN_NV16 },
+	{ "422",      REN_NV16 },
+	{ "NV16",     REN_NV16 },
 };
 
 static int set_colorspace (char * arg, int * c)
@@ -256,12 +256,12 @@ static void scale(
 	unsigned char *lcd_buf = display_get_back_buff_virt(display);
 	int lcd_w = display_get_width(display);
 	int lcd_h = display_get_height(display);
-	struct sh_vid_surface src_surface;
-	struct sh_vid_surface src_surface2;
-	struct sh_vid_surface dst_surface;
-	struct sh_vid_surface dst_surface2;
-	struct sh_vid_rect src_sel;
-	struct sh_vid_rect dst_sel;
+	struct ren_vid_surface src_surface;
+	struct ren_vid_surface src_surface2;
+	struct ren_vid_surface dst_surface;
+	struct ren_vid_surface dst_surface2;
+	struct ren_vid_rect src_sel;
+	struct ren_vid_rect dst_sel;
 
 	/* Clear the back buffer */
 	draw_rect_rgb565(lcd_buf, BLACK, 0, 0, lcd_w, lcd_h, lcd_w);
@@ -274,7 +274,7 @@ static void scale(
 	src_surface.h = h;
 	src_surface.pitch = w;
 
-	dst_surface.format = SH_RGB565;
+	dst_surface.format = REN_RGB565;
 	dst_surface.py = lcd_buf;
 	dst_surface.pc = 0;
 	dst_surface.pa = 0;
@@ -458,7 +458,7 @@ int main (int argc, char * argv[])
 			input_w = 320;
 			input_h = 240;
 		}
-		input_colorspace = SH_RGB565;
+		input_colorspace = REN_RGB565;
 	}
 
 	/* Check that all parameters are set */

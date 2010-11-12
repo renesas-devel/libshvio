@@ -109,26 +109,26 @@ static const char * show_size (int w, int h)
 
 struct extensions_t {
 	const char *ext;
-	sh_vid_format_t fmt;
+	ren_vid_format_t fmt;
 };
 
 static const struct extensions_t exts[] = {
-	{ "RGB565",   SH_RGB565 },
-	{ "rgb",      SH_RGB565 },
-	{ "RGB888",   SH_RGB24 },
-	{ "888",      SH_RGB24 },
-	{ "RGBx888",  SH_RGB32 },
-	{ "x888",     SH_RGB32 },
-	{ "YCbCr420", SH_NV12 },
-	{ "420",      SH_NV12 },
-	{ "yuv",      SH_NV12 },
-	{ "NV12",     SH_NV12 },
-	{ "YCbCr422", SH_NV16 },
-	{ "422",      SH_NV16 },
-	{ "NV16",     SH_NV16 },
+	{ "RGB565",   REN_RGB565 },
+	{ "rgb",      REN_RGB565 },
+	{ "RGB888",   REN_RGB24 },
+	{ "888",      REN_RGB24 },
+	{ "RGBx888",  REN_RGB32 },
+	{ "x888",     REN_RGB32 },
+	{ "YCbCr420", REN_NV12 },
+	{ "420",      REN_NV12 },
+	{ "yuv",      REN_NV12 },
+	{ "NV12",     REN_NV12 },
+	{ "YCbCr422", REN_NV16 },
+	{ "422",      REN_NV16 },
+	{ "NV16",     REN_NV16 },
 };
 
-static int set_colorspace (char * arg, sh_vid_format_t * c)
+static int set_colorspace (char * arg, ren_vid_format_t * c)
 {
 	int nr_exts = sizeof(exts) / sizeof(exts[0]);
 	int i;
@@ -146,7 +146,7 @@ static int set_colorspace (char * arg, sh_vid_format_t * c)
 	return -1;
 }
 
-static const char * show_colorspace (sh_vid_format_t c)
+static const char * show_colorspace (ren_vid_format_t c)
 {
 	int nr_exts = sizeof(exts) / sizeof(exts[0]);
 	int i;
@@ -186,12 +186,12 @@ static off_t filesize (char * filename)
 	return statbuf.st_size;
 }
 
-static off_t imgsize (sh_vid_format_t colorspace, int w, int h)
+static off_t imgsize (ren_vid_format_t colorspace, int w, int h)
 {
 	return (off_t)(size_y(colorspace, w*h) + size_c(colorspace, w*h));
 }
 
-static int guess_colorspace (char * filename, sh_vid_format_t * c)
+static int guess_colorspace (char * filename, ren_vid_format_t * c)
 {
 	char * ext;
 
@@ -200,7 +200,7 @@ static int guess_colorspace (char * filename, sh_vid_format_t * c)
 
 	/* If the colorspace is already set (eg. explicitly by user args)
 	 * then don't try to guess */
-	if (*c != SH_UNKNOWN) return -1;
+	if (*c != REN_UNKNOWN) return -1;
 
 	ext = strrchr (filename, '.');
 	if (ext == NULL) return -1;
@@ -208,7 +208,7 @@ static int guess_colorspace (char * filename, sh_vid_format_t * c)
 	return set_colorspace(ext+1, c);
 }
 
-static int guess_size (char * filename, sh_vid_format_t colorspace, int * w, int * h)
+static int guess_size (char * filename, ren_vid_format_t colorspace, int * w, int * h)
 {
 	off_t size;
 
@@ -243,8 +243,8 @@ int main (int argc, char * argv[])
 	size_t nread;
 	size_t input_size, output_size;
 	SHVEU *veu;
-	struct sh_vid_surface src;
-	struct sh_vid_surface dst;
+	struct ren_vid_surface src;
+	struct ren_vid_surface dst;
 	int ret;
 	int frameno=0;
 
@@ -274,8 +274,8 @@ int main (int argc, char * argv[])
 	src.h = -1;
 	dst.w = -1;
 	dst.h = -1;
-	src.format = SH_UNKNOWN;
-	dst.format = SH_UNKNOWN;
+	src.format = REN_UNKNOWN;
+	dst.format = REN_UNKNOWN;
 
 
 	progname = argv[0];
@@ -357,7 +357,7 @@ int main (int argc, char * argv[])
 	guess_colorspace (outfilename, &dst.format);
 	/* If the output colorspace isn't given and can't be guessed, then default to
 	 * the input colorspace (ie. no colorspace conversion) */
-	if (dst.format == SH_UNKNOWN)
+	if (dst.format == REN_UNKNOWN)
 		dst.format = src.format;
 
 	guess_size (infilename, src.format, &src.w, &src.h);
@@ -375,7 +375,7 @@ int main (int argc, char * argv[])
 	}
 
 	/* Check that all parameters are set */
-	if (src.format == SH_UNKNOWN) {
+	if (src.format == REN_UNKNOWN) {
 		fprintf (stderr, "ERROR: Input colorspace unspecified\n");
 		error = 1;
 	}
@@ -388,7 +388,7 @@ int main (int argc, char * argv[])
 		error = 1;
 	}
 
-	if (dst.format == SH_UNKNOWN) {
+	if (dst.format == REN_UNKNOWN) {
 		fprintf (stderr, "ERROR: Output colorspace unspecified\n");
 		error = 1;
 	}
@@ -416,14 +416,14 @@ int main (int argc, char * argv[])
 
 	/* Set up memory buffers */
 	src.py = uiomux_malloc (uiomux, UIOMUX_SH_VEU, input_size, 32);
-	if (src.format == SH_RGB565) {
+	if (src.format == REN_RGB565) {
 		src.pc = 0;
 	} else {
 		src.pc = src.py + (src.w * src.h);
 	}
 
 	dst.py = uiomux_malloc (uiomux, UIOMUX_SH_VEU, output_size, 32);
-	if (dst.format == SH_RGB565) {
+	if (dst.format == REN_RGB565) {
 		dst.pc = 0;
 	} else {
 		dst.pc = dst.py + (dst.w * dst.h);
