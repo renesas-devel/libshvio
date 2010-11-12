@@ -19,6 +19,8 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+//#define BUNDLE_MODE
+//#undef HAVE_NCURSES
 #ifdef HAVE_NCURSES
 #ifdef HAVE_NCURSES_SUBDIR
 #include <ncurses/ncurses.h>
@@ -247,58 +249,102 @@ static void scale(
 	void *pc,
 	unsigned long w,
 	unsigned long h,
-	unsigned long x,	/* Centre co-ordinates */
-	unsigned long y,
+	int x,	/* Centre co-ordinates */
+	int y,
 	int src_fmt)
 {
-	unsigned char *bb_virt = display_get_back_buff_virt(display);
+	unsigned char *lcd_buf = display_get_back_buff_virt(display);
 	int lcd_w = display_get_width(display);
 	int lcd_h = display_get_height(display);
-	int scaled_w = (int) (w * scale);
-	int scaled_h = (int) (h * scale);
 	struct sh_vid_surface src_surface;
+	struct sh_vid_surface src_surface2;
 	struct sh_vid_surface dst_surface;
-	struct sh_vid_rect dst_selection;
+	struct sh_vid_surface dst_surface2;
+	struct sh_vid_rect src_sel;
+	struct sh_vid_rect dst_sel;
 
 	/* Clear the back buffer */
-	draw_rect_rgb565(bb_virt, BLACK, 0, 0, lcd_w, lcd_h, lcd_w);
+	draw_rect_rgb565(lcd_buf, BLACK, 0, 0, lcd_w, lcd_h, lcd_w);
 
 	src_surface.format = src_fmt;
 	src_surface.py = py;
 	src_surface.pc = pc;
+	src_surface.pa = 0;
 	src_surface.w = w;
 	src_surface.h = h;
+	src_surface.pitch = w;
 
 	dst_surface.format = SH_RGB565;
-	dst_surface.py = bb_virt;
+	dst_surface.py = lcd_buf;
 	dst_surface.pc = 0;
+	dst_surface.pa = 0;
 	dst_surface.w = lcd_w;
 	dst_surface.h = lcd_h;
+	dst_surface.pitch = lcd_w;
 
-	dst_selection.x = x;
-	dst_selection.y = y;
-	dst_selection.w = scaled_w;
-	dst_selection.h = scaled_h;
+	src_surface2 = src_surface;
+	dst_surface2 = dst_surface;
+
+#ifndef BUNDLE_MODE
+	src_sel.w = w;
+	src_sel.h = h;
+	src_sel.x = 0;
+	src_sel.y = 0;
+
+	dst_sel.x = x;
+	dst_sel.y = y;
+
+	/* Handle output off-surface to the left or above by using part of the input */
+	if (x < 0) {
+		src_sel.w = w + (int)(x/scale);
+		src_sel.x = w - src_sel.w;
+		dst_sel.x = 0;
+	}
+	if (y < 0) {
+		src_sel.h = h + (int)(y/scale);
+		src_sel.y = h - src_sel.h;
+		dst_sel.y = 0;
+	}
+	dst_sel.w = (int) (src_sel.w * scale) & ~1;
+	dst_sel.h = (int) (src_sel.h * scale) & ~1;
+
+
+	/* Handle output off-surface to the right or below by cropping the input & output */
+	if ((dst_sel.x + dst_sel.w) > lcd_w) {
+		src_sel.w = (int)((lcd_w - dst_sel.x) / scale);
+		dst_sel.w = lcd_w - dst_sel.x;
+	}
+	if ((dst_sel.y + dst_sel.h) > lcd_h) {
+		src_sel.h = (int)((lcd_h - dst_sel.y) / scale);
+		dst_sel.h = lcd_h - dst_sel.y;
+	}
+
+	if (src_sel.w <= 0 || src_sel.h <= 0)
+		return;
+	if (dst_sel.w <= 0 || dst_sel.h <= 0)
+		return;
+
+	get_sel_surface(&src_surface2, &src_surface, &src_sel);
+	get_sel_surface(&dst_surface2, &dst_surface, &dst_sel);
+#endif	/* !BUNDLE_MODE */
 
 	shveu_setup(
 		veu,
-		&src_surface,
-		&dst_surface,
-		NULL,
-		&dst_selection,
+		&src_surface2,
+		&dst_surface2,
 		SHVEU_NO_ROT);
 
-#ifdef BUNDLE
+#ifdef BUNDLE_MODE
 	{
 		int end = 0;
 		int nr_lines = 16;
 
 		while (end == 0) {
 			shveu_set_src(veu, py, pc);
-			shveu_set_dst(veu, bb_virt, 0);
-			py += nr_lines * w * 1;
-			pc += nr_lines * w / 2;
-			bb_virt += nr_lines * lcd_w * 2;
+			shveu_set_dst(veu, lcd_buf, 0);
+			py += offset_y(src_surface.format, 0, nr_lines, src_surface.pitch);
+			pc += offset_c(src_surface.format, 0, nr_lines, src_surface.pitch);
+			lcd_buf += offset_y(dst_surface.format, 0, nr_lines, dst_surface.pitch);
 			shveu_start_bundle(veu, nr_lines);
 			end = shveu_wait(veu);
 		}
@@ -306,7 +352,7 @@ static void scale(
 #else
 	shveu_start(veu);
 	shveu_wait(veu);
-#endif
+#endif	/* BUNDLE_MODE */
 
 	display_flip(display);
 }
@@ -536,6 +582,8 @@ int main (int argc, char * argv[])
 			run = 0;
 			break;
 		}
+#else
+		read_image = 1;
 #endif
 	}
 

@@ -28,6 +28,7 @@
 #include "config.h"
 #endif
 
+#include <string.h>
 #include <stdio.h>
 #include <errno.h>
 
@@ -59,6 +60,10 @@ struct uio_map {
 struct SHVEU {
 	UIOMux *uiomux;
 	struct uio_map uio_mmio;
+	struct sh_vid_surface src_user;
+	struct sh_vid_surface src_hw;
+	struct sh_vid_surface dst_user;
+	struct sh_vid_surface dst_hw;
 };
 
 
@@ -72,6 +77,90 @@ static const struct veu_format_info *fmt_info(sh_vid_format_t format)
 			return &veu_fmts[i];
 	}
 	return NULL;
+}
+
+static void dbg(const char *str1, int l, const char *str2, const struct sh_vid_surface *s)
+{
+#if DEBUG
+	fprintf(stderr, "%s:%d: %s: (%dx%d) pitch=%d py=%p, pc=%p, pa=%p\n", str1, l, str2, s->w, s->h, s->pitch, s->py, s->pc, s->pa);
+#endif
+}
+
+static void copy_plane(void *dst, void *src, int bpp, int h, int len, int dst_pitch, int src_pitch)
+{
+	int y;
+	if (src && dst != src) {
+		for (y=0; y<h; y++) {
+			memcpy(dst, src, len * bpp);
+			src += src_pitch * bpp;
+			dst += dst_pitch * bpp;
+		}
+	}
+}
+
+/* Copy active surface contents - assumes output is big enough */
+static void copy_surface(
+	struct sh_vid_surface *out,
+	const struct sh_vid_surface *in)
+{
+	const struct format_info *fmt = &fmts[in->format];
+
+	copy_plane(out->py, in->py, fmt->y_bpp, in->h, in->w, out->pitch, in->pitch);
+
+	copy_plane(out->pc, in->pc, fmt->c_bpp,
+		in->h/fmt->c_ss_vert,
+		in->w/fmt->c_ss_horz,
+		out->pitch/fmt->c_ss_horz,
+		in->pitch/fmt->c_ss_horz);
+
+	copy_plane(out->pa, in->pa, 1, in->h, in->w, out->pitch, in->pitch);
+}
+
+/* Check/create surface that can be accessed by the hardware */
+static int get_hw_surface(
+	UIOMux * uiomux,
+	struct sh_vid_surface *out,
+	const struct sh_vid_surface *in)
+{
+	unsigned long phys;
+	int y;
+
+	*out = *in;
+
+	if (in->py) {
+		phys = uiomux_all_virt_to_phys(in->py);
+		if (!phys) {
+			size_t len = size_y(in->format, in->h * in->w);
+			/* Supplied buffer is not usable by the hardware! */
+			out->py = uiomux_malloc(uiomux, UIOMUX_SH_VEU, len, 32);
+			if (!out->py)
+				return -1;
+		}
+	}
+
+	if (in->pc) {
+		phys = uiomux_all_virt_to_phys(in->pc);
+		if (!phys) {
+			size_t len = size_c(in->format, in->h * in->w);
+			/* Supplied buffer is not usable by the hardware! */
+			out->pc = uiomux_malloc(uiomux, UIOMUX_SH_VEU, len, 32);
+			if (!out->pc)
+				return -1;
+		}
+	}
+
+	if (in->pa) {
+		phys = uiomux_all_virt_to_phys(in->pa);
+		if (!phys) {
+			size_t len = size_a(in->format, in->h * in->w);
+			/* Supplied buffer is not usable by the hardware! */
+			out->pa = uiomux_malloc(uiomux, UIOMUX_SH_VEU, len, 32);
+			if (!out->pa)
+				return -1;
+		}
+	}
+
+	return 0;
 }
 
 /* Helper functions for reading registers. */
@@ -187,54 +276,6 @@ set_clip(struct uio_map *ump, int vertical, int clip_out)
 	write_reg(ump, value, VRFSR);
 }
 
-static void
-limit_selection(
-	const struct sh_vid_surface *surface,
-	const struct sh_vid_rect *sel,
-	struct sh_vid_rect *new_sel)
-{
-	new_sel->x = sel->x;
-	new_sel->y = sel->y;
-	new_sel->w = sel->w;
-	new_sel->h = sel->h;
-
-	if (new_sel->x < 0) new_sel->x = 0;
-	if (new_sel->y < 0) new_sel->y = 0;
-	if (new_sel->x > surface->w) new_sel->x = surface->w;
-	if (new_sel->y > surface->h) new_sel->y = surface->h;
-
-	if ((new_sel->x + new_sel->w) > surface->w)
-		new_sel->w = surface->w - new_sel->x;
-	if ((new_sel->y + new_sel->h) > surface->h)
-		new_sel->h = surface->h - new_sel->y;
-}
-
-static unsigned long
-offset_py(
-	const struct sh_vid_surface *surface,
-	const struct sh_vid_rect *sel)
-{
-	unsigned long phys;
-	int offset = (sel->y * surface->w) + sel->x;
-	phys = uiomux_all_virt_to_phys(surface->py);
-	if (phys)
-		phys += size_y(surface->format, offset);
-	return phys;
-}
-
-static unsigned long
-offset_pc(
-	const struct sh_vid_surface *surface,
-	const struct sh_vid_rect *sel)
-{
-	unsigned long phys;
-	int offset = (sel->y * surface->w) + sel->x;
-	phys = uiomux_all_virt_to_phys(surface->pc);
-	if (phys)
-		phys += size_c(surface->format, offset);
-	return phys;
-}
-
 static int format_supported(sh_vid_format_t fmt)
 {
 	const struct veu_format_info *info = fmt_info(fmt);
@@ -284,48 +325,20 @@ shveu_setup(
 	SHVEU *veu,
 	const struct sh_vid_surface *src_surface,
 	const struct sh_vid_surface *dst_surface,
-	const struct sh_vid_rect *src_selection,
-	const struct sh_vid_rect *dst_selection,
 	shveu_rotation_t rotate)
 {
 	struct uio_map *ump = &veu->uio_mmio;
 	float scale_x, scale_y;
 	unsigned long temp;
-	struct sh_vid_rect default_src_selection = {
-		.x = 0,
-		.y = 0,
-		.w = src_surface->w,
-		.h = src_surface->h,
-	};
-	struct sh_vid_rect default_dst_selection = {
-		.x = 0,
-		.y = 0,
-		.w = dst_surface->w,
-		.h = dst_surface->h,
-	};
-	int src_w, src_h;
-	int dst_w, dst_h;
-	unsigned long py, pc;
-	struct sh_vid_rect new_src_selection;
-	struct sh_vid_rect new_dst_selection;
+	unsigned long Y, C;
 	const struct veu_format_info *src_info = fmt_info(src_surface->format);
 	const struct veu_format_info *dst_info = fmt_info(dst_surface->format);
-
-	/* Use default selections if not provided */
-	if (!src_selection)
-		src_selection = &default_src_selection;
-	if (!dst_selection)
-		dst_selection = &default_dst_selection;
-
-	/* Save selection sizes for scaling calculation */
-	src_w = src_selection->w;
-	src_h = src_selection->h;
-	dst_w = dst_selection->w;
-	dst_h = dst_selection->h;
+	struct sh_vid_surface *src = &veu->src_hw;
+	struct sh_vid_surface *dst = &veu->dst_hw;
 
 	/* scale factors */
-	scale_x = (float)dst_w / src_w;
-	scale_y = (float)dst_h / src_h;
+	scale_x = (float)dst_surface->w / src_surface->w;
+	scale_y = (float)dst_surface->h / src_surface->h;
 
 	if (!format_supported(src_surface->format) || !format_supported(dst_surface->format))
 		return -1;
@@ -340,8 +353,19 @@ shveu_setup(
 	}
 	if ((scale_x < 1.0/16.0) || (scale_y < 1.0/16.0))
 		return -1;
-	temp = 0;
 
+	/* source - use a buffer the hardware can access */
+	if (get_hw_surface(veu->uiomux, src, src_surface) < 0)
+		return -1;
+	copy_surface(src, src_surface);
+
+	/* destination - use a buffer the hardware can access */
+	if (get_hw_surface(veu->uiomux, dst, dst_surface) < 0)
+		return -1;
+
+	/* Keep track of the requsted output surface */
+	veu->src_user = *src_surface;
+	veu->dst_user = *dst_surface;
 
 	uiomux_lock (veu->uiomux, UIOMUX_SH_VEU);
 
@@ -352,39 +376,28 @@ shveu_setup(
 	write_reg(ump, 0, VBSSR);
 
 	/* source */
-	limit_selection(src_surface, src_selection, &new_src_selection);
-	py = offset_py(src_surface, &new_src_selection);
-	pc = offset_pc(src_surface, &new_src_selection);
-	write_reg(ump, py, VSAYR);
-	write_reg(ump, pc, VSACR);
-
-	write_reg(ump, (new_src_selection.h << 16) | new_src_selection.w, VESSR);
-
-	/* memory pitch in bytes */
-	temp = size_y(src_surface->format, src_surface->w);
-	write_reg(ump, temp, VESWR);
-
+	Y = uiomux_all_virt_to_phys(src->py);
+	C = uiomux_all_virt_to_phys(src->pc);
+	write_reg(ump, Y, VSAYR);
+	write_reg(ump, C, VSACR);
+	write_reg(ump, (src->h << 16) | src->w, VESSR);
+	write_reg(ump, size_y(src->format, src->pitch), VESWR);
 
 	/* destination */
-	limit_selection(dst_surface, dst_selection, &new_dst_selection);
-	py = offset_py(dst_surface, &new_dst_selection);
-	pc = offset_pc(dst_surface, &new_dst_selection);
-
+	Y = uiomux_all_virt_to_phys(dst->py);
+	C = uiomux_all_virt_to_phys(dst->pc);
 	if (rotate) {
-		int src_vblk  = (new_src_selection.h+15)/16;
-		int src_sidev = (new_src_selection.h+15)%16 + 1;
+		int src_vblk  = (src->h+15)/16;
+		int src_sidev = (src->h+15)%16 + 1;
 		int offset;
 
-		offset = size_y(dst_surface->format, ((src_vblk-2)*16 + src_sidev));
-		py += offset;
-		pc += offset;
+		offset = size_y(dst->format, ((src_vblk-2)*16 + src_sidev));
+		Y += offset;
+		C += offset;
 	}
-	write_reg(ump, py, VDAYR);
-	write_reg(ump, pc, VDACR);
-
-	/* memory pitch in bytes */
-	temp = size_y(dst_surface->format, dst_surface->w);
-	write_reg(ump, temp, VEDWR);
+	write_reg(ump, Y, VDAYR);
+	write_reg(ump, C, VDACR);
+	write_reg(ump, size_y(dst->format, dst->pitch), VEDWR);
 
 	/* byte/word swapping */
 	temp = 0;
@@ -419,14 +432,14 @@ shveu_setup(
 
 	/* Clipping */
 	write_reg(ump, 0, VRFSR);
-	set_clip(ump, 0, new_dst_selection.w);
-	set_clip(ump, 1, new_dst_selection.h);
+	set_clip(ump, 0, dst->w);
+	set_clip(ump, 1, dst->h);
 
-	/* Scaling - based on selections before cropping */
+	/* Scaling */
 	write_reg(ump, 0, VRFCR);
 	if (!rotate) {
-		set_scale(ump, 0, src_w, dst_w, 0);
-		set_scale(ump, 1, src_h, dst_h, 0);
+		set_scale(ump, 0, src->w, dst->w, 0);
+		set_scale(ump, 1, src->h, dst->h, 0);
 	}
 
 	/* Rotate */
@@ -437,6 +450,10 @@ shveu_setup(
 	}
 
 	return 0;
+
+fail:
+	uiomux_unlock(veu->uiomux, UIOMUX_SH_VEU);
+	return -1;
 }
 
 void
@@ -465,8 +482,8 @@ shveu_set_dst(
 
 	Y = uiomux_all_virt_to_phys(dst_py);
 	C = uiomux_all_virt_to_phys(dst_pc);
-	write_reg(ump, Y, VSAYR);
-	write_reg(ump, C, VSACR);
+	write_reg(ump, Y, VDAYR);
+	write_reg(ump, C, VDACR);
 }
 
 void
@@ -514,6 +531,30 @@ shveu_wait(SHVEU *veu)
 	if (vevtr & 1) {
 		uiomux_unlock(veu->uiomux, UIOMUX_SH_VEU);
 		complete = 1;
+
+		dbg(__func__, __LINE__, "src_user", &veu->src_user);
+		dbg(__func__, __LINE__, "dst_user", &veu->dst_user);
+		dbg(__func__, __LINE__, "src_hw", &veu->src_hw);
+		dbg(__func__, __LINE__, "dst_hw", &veu->dst_hw);
+		copy_surface(&veu->dst_user, &veu->dst_hw);
+
+		/* free locally alloacted surfaces */
+		if (veu->src_hw.py != veu->src_user.py) {
+			size_t len = size_y(veu->src_hw.format, veu->src_hw.h * veu->src_hw.w);
+			uiomux_free(veu->uiomux, UIOMUX_SH_VEU, veu->src_hw.py, len);
+		}
+		if (veu->src_hw.pc != veu->src_user.pc) {
+			size_t len = size_c(veu->src_hw.format, veu->src_hw.h * veu->src_hw.w);
+			uiomux_free(veu->uiomux, UIOMUX_SH_VEU, veu->src_hw.pc, len);
+		}
+		if (veu->dst_hw.py != veu->dst_user.py) {
+			size_t len = size_y(veu->dst_hw.format, veu->dst_hw.h * veu->dst_hw.w);
+			uiomux_free(veu->uiomux, UIOMUX_SH_VEU, veu->dst_hw.py, len);
+		}
+		if (veu->dst_hw.pc != veu->dst_user.pc) {
+			size_t len = size_c(veu->dst_hw.format, veu->dst_hw.h * veu->dst_hw.w);
+			uiomux_free(veu->uiomux, UIOMUX_SH_VEU, veu->dst_hw.pc, len);
+		}
 	}
 
 	return complete;
@@ -527,8 +568,7 @@ shveu_resize(
 {
 	int ret;
 
-	ret = shveu_setup(veu, src_surface, dst_surface,
-		NULL, NULL, SHVEU_NO_ROT);
+	ret = shveu_setup(veu, src_surface, dst_surface, SHVEU_NO_ROT);
 
 	if (ret == 0) {
 		shveu_start(veu);
@@ -547,8 +587,7 @@ shveu_rotate(
 {
 	int ret;
 
-	ret = shveu_setup(veu, src_surface, dst_surface,
-		NULL, NULL, rotate);
+	ret = shveu_setup(veu, src_surface, dst_surface, rotate);
 
 	if (ret == 0) {
 		shveu_start(veu);

@@ -22,11 +22,20 @@
 #ifndef __SH_VIDEO_BUFFER_H__
 #define __SH_VIDEO_BUFFER_H__
 
+/* Notes on YUV/YCbCr:
+ * YUV historically refers to analogue color space, and YCbCr to digital.
+ * The formula used to convert to/from RGB is BT.601 or BT.709. HDTV specifies
+ * BT.709, everything else BT.601.
+ * MPEG standards use 'clamped' data with Y[16,235], CbCr[16,240]. JFIF file
+ * format for JPEG specifies full-range data.
+ * All YCbCr formats here are BT.601, Y[16,235], CbCr[16,240].
+ */
+
 /** Surface formats */
 typedef enum {
 	SH_UNKNOWN,
-	SH_NV12,    /**< YUV420: Y plane, packed CbCr plane, optional alpha plane */
-	SH_NV16,    /**< YUV422: Y plane, packed CbCr plane, optional alpha plane */
+	SH_NV12,    /**< YCbCr420: Y plane, packed CbCr plane, optional alpha plane */
+	SH_NV16,    /**< YCbCr422: Y plane, packed CbCr plane, optional alpha plane */
 	SH_RGB565,  /**< Packed RGB565 */
 	SH_RGB24,   /**< Packed RGB888 */
 	SH_BGR24,   /**< Packed BGR888 */
@@ -39,36 +48,40 @@ typedef enum {
 struct sh_vid_rect {
 	int x;      /**< Offset from left in pixels */
 	int y;      /**< Offset from top in pixels */
-	int w;      /**< Width of surface in pixels */
-	int h;      /**< Height of surface in pixels */
+	int w;      /**< Width of rectange in pixels */
+	int h;      /**< Height of rectange in pixels */
 };
 
 /** Surface */
 struct sh_vid_surface {
 	sh_vid_format_t format; /**< Surface format */
-	int w;      /**< Width of surface in pixels */
-	int h;      /**< Height of surface in pixels */
+	int w;      /**< Width of active surface in pixels */
+	int h;      /**< Height of active surface in pixels */
+	int pitch;  /**< Width of surface in pixels */
 	void *py;   /**< Address of Y or RGB plane */
 	void *pc;   /**< Address of CbCr plane (ignored for RGB) */
-	void *pa;   /**< Address of Alpha plane */
+	void *pa;   /**< Address of Alpha plane (ignored) */
 };
 
 struct format_info {
-	sh_vid_format_t fmt;
-	int y_bpp;
-	int c_bpp_n;	/* numerator */
-	int c_bpp_d;	/* denominator */
+	sh_vid_format_t fmt;    /**< surface format */
+	int y_bpp;      /**< Luma numerator */
+	int c_bpp;      /**< Chroma numerator */
+	int c_bpp_n;    /**< Chroma numerator */
+	int c_bpp_d;    /**< Chroma denominator */
+	int c_ss_horz;  /**< Chroma horizontal sub-sampling */
+	int c_ss_vert;  /**< Chroma vertical sub-sampling */
 };
 
 static const struct format_info fmts[] = {
-	{ SH_UNKNOWN, 0, 0, 1 },
-	{ SH_NV12,   1, 1, 2 },
-	{ SH_NV16,   1, 1, 1 },
-	{ SH_RGB565, 2, 0, 1 },
-	{ SH_RGB24,  3, 0, 1 },
-	{ SH_BGR24,  3, 0, 1 },
-	{ SH_RGB32,  4, 0, 1 },
-	{ SH_ARGB32, 4, 0, 1 },
+	{ SH_UNKNOWN, 0, 0, 0, 1, 1, 1 },
+	{ SH_NV12,    1, 2, 1, 2, 2, 2 },
+	{ SH_NV16,    1, 2, 1, 1, 2, 1 },
+	{ SH_RGB565,  2, 0, 0, 1, 1, 1 },
+	{ SH_RGB24,   3, 0, 0, 1, 1, 1 },
+	{ SH_BGR24,   3, 0, 0, 1, 1, 1 },
+	{ SH_RGB32,   4, 0, 0, 1, 1, 1 },
+	{ SH_ARGB32,  4, 0, 0, 1, 1, 1 },
 };
 
 static inline int is_ycbcr(sh_vid_format_t fmt)
@@ -93,14 +106,70 @@ static inline int different_colorspace(sh_vid_format_t fmt1, sh_vid_format_t fmt
 	return 0;
 }
 
-static inline int size_y(sh_vid_format_t fmt, int nr_pixels)
+static inline size_t size_y(sh_vid_format_t format, int nr_pixels)
 {
-	return (fmts[fmt].y_bpp * nr_pixels);
+	const struct format_info *fmt = &fmts[format];
+	return (fmt->y_bpp * nr_pixels);
 }
 
-static inline int size_c(sh_vid_format_t fmt, int nr_pixels)
+static inline size_t size_c(sh_vid_format_t format, int nr_pixels)
 {
-	return (fmts[fmt].c_bpp_n * nr_pixels) / fmts[fmt].c_bpp_d;
+	const struct format_info *fmt = &fmts[format];
+	return (fmt->c_bpp_n * nr_pixels) / fmt->c_bpp_d;
+}
+
+static inline size_t size_a(sh_vid_format_t format, int nr_pixels)
+{
+	/* Assume 1 byte per alpha pixel */
+	return nr_pixels;
+}
+
+static inline size_t offset_y(sh_vid_format_t format, int w, int h, int pitch)
+{
+	const struct format_info *fmt = &fmts[format];
+	return (fmt->y_bpp * ((h * pitch) + w));
+}
+
+static inline size_t offset_c(sh_vid_format_t format, int w, int h, int pitch)
+{
+	const struct format_info *fmt = &fmts[format];
+	return (fmt->c_bpp * (((h/fmt->c_ss_vert) * pitch/fmt->c_ss_horz) + w/fmt->c_ss_horz));
+}
+
+static inline size_t offset_a(sh_vid_format_t format, int w, int h, int pitch)
+{
+	/* Assume 1 byte per alpha pixel */
+	return ((h * pitch) + w);
+}
+
+static int horz_increment(sh_vid_format_t format)
+{
+	/* Only restriction is caused by chroma sub-sampling */
+	return fmts[format].c_ss_horz;
+}
+
+static int vert_increment(sh_vid_format_t format)
+{
+	/* Only restriction is caused by chroma sub-sampling */
+	return fmts[format].c_ss_vert;
+}
+
+/* Get a new surface descriptor based on a selection */
+static inline void get_sel_surface(
+	struct sh_vid_surface *out,
+	const struct sh_vid_surface *in,
+	const struct sh_vid_rect *sel)
+{
+	int x = sel->x & ~horz_increment(in->format);
+	int y = sel->y & ~vert_increment(in->format);
+
+	*out = *in;
+	out->w = sel->w & ~horz_increment(in->format);
+	out->h = sel->h & ~vert_increment(in->format);
+
+	if (in->py) out->py += offset_y(in->format, x, y, in->pitch);
+	if (in->pc) out->pc += offset_c(in->format, x, y, in->pitch);
+	if (in->pa) out->pa += offset_a(in->format, x, y, in->pitch);
 }
 
 #endif /* __SH_VIDEO_BUFFER_H__ */
@@ -121,15 +190,11 @@ typedef enum {
 } shveu_rotation_t;
 
 /** Setup a (scale|rotate) & crop between YCbCr & RGB surfaces
- * The scaling factor is calculated from the selection sizes. Therefore, if
- * you wish to crop the output to part of the output surface, you must also
- * change the input selection.
+ * The scaling factor is calculated from the surface sizes.
  *
  * \param veu VEU handle
  * \param src_surface Input surface
  * \param dst_surface Output surface
- * \param src_selection Input specification (NULL indicates whole surface)
- * \param dst_selection Output specification (NULL indicates whole surface)
  * \param rotate Rotation to apply
  * \retval 0 Success
  * \retval -1 Error: Attempt to perform simultaneous scaling and rotation
@@ -139,8 +204,6 @@ shveu_setup(
 	SHVEU *veu,
 	const struct sh_vid_surface *src_surface,
 	const struct sh_vid_surface *dst_surface,
-	const struct sh_vid_rect *src_selection,
-	const struct sh_vid_rect *dst_selection,
 	shveu_rotation_t rotate);
 
 
