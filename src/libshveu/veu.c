@@ -36,6 +36,8 @@
 #include "shveu/shveu.h"
 #include "shveu_regs.h"
 
+/* #define DEBUG */
+
 struct veu_format_info {
 	ren_vid_format_t fmt;
 	unsigned long vtrcr_src;
@@ -81,7 +83,7 @@ static const struct veu_format_info *fmt_info(ren_vid_format_t format)
 
 static void dbg(const char *str1, int l, const char *str2, const struct ren_vid_surface *s)
 {
-#if DEBUG
+#ifdef DEBUG
 	fprintf(stderr, "%s:%d: %s: (%dx%d) pitch=%d py=%p, pc=%p, pa=%p\n", str1, l, str2, s->w, s->h, s->pitch, s->py, s->pc, s->pa);
 #endif
 }
@@ -336,6 +338,9 @@ shveu_setup(
 	struct ren_vid_surface *src = &veu->src_hw;
 	struct ren_vid_surface *dst = &veu->dst_hw;
 
+	dbg(__func__, __LINE__, "src_user", src_surface);
+	dbg(__func__, __LINE__, "dst_user", dst_surface);
+
 	/* scale factors */
 	scale_x = (float)dst_surface->w / src_surface->w;
 	scale_y = (float)dst_surface->h / src_surface->h;
@@ -532,8 +537,6 @@ shveu_wait(SHVEU *veu)
 		uiomux_unlock(veu->uiomux, UIOMUX_SH_VEU);
 		complete = 1;
 
-		dbg(__func__, __LINE__, "src_user", &veu->src_user);
-		dbg(__func__, __LINE__, "dst_user", &veu->dst_user);
 		dbg(__func__, __LINE__, "src_hw", &veu->src_hw);
 		dbg(__func__, __LINE__, "dst_hw", &veu->dst_hw);
 		copy_surface(&veu->dst_user, &veu->dst_hw);
