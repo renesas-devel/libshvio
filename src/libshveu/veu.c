@@ -126,39 +126,26 @@ static int get_hw_surface(
 {
 	unsigned long phys;
 	int y;
+	int alloc = 0;
+
+	if (in == NULL || out == NULL)
+		return 0;
 
 	*out = *in;
+	if (in->py) alloc |= !uiomux_all_virt_to_phys(in->py);
+	if (in->pc) alloc |= !uiomux_all_virt_to_phys(in->pc);
 
-	if (in->py) {
-		phys = uiomux_all_virt_to_phys(in->py);
-		if (!phys) {
-			size_t len = size_y(in->format, in->h * in->w);
-			/* Supplied buffer is not usable by the hardware! */
-			out->py = uiomux_malloc(uiomux, UIOMUX_SH_VEU, len, 32);
-			if (!out->py)
-				return -1;
-		}
-	}
+	if (alloc) {
+		/* One of the supplied buffers is not usable by the hardware! */
+		size_t len = size_y(in->format, in->h * in->w);
+		if (in->pc) len += size_c(in->format, in->h * in->w);
 
-	if (in->pc) {
-		phys = uiomux_all_virt_to_phys(in->pc);
-		if (!phys) {
-			size_t len = size_c(in->format, in->h * in->w);
-			/* Supplied buffer is not usable by the hardware! */
-			out->pc = uiomux_malloc(uiomux, UIOMUX_SH_VEU, len, 32);
-			if (!out->pc)
-				return -1;
-		}
-	}
+		out->py = uiomux_malloc(uiomux, UIOMUX_SH_VEU, len, 32);
+		if (!out->py)
+			return -1;
 
-	if (in->pa) {
-		phys = uiomux_all_virt_to_phys(in->pa);
-		if (!phys) {
-			size_t len = size_a(in->format, in->h * in->w);
-			/* Supplied buffer is not usable by the hardware! */
-			out->pa = uiomux_malloc(uiomux, UIOMUX_SH_VEU, len, 32);
-			if (!out->pa)
-				return -1;
+		if (in->pc) {
+			out->pc = out->py + size_y(in->format, in->h * in->w);
 		}
 	}
 
@@ -544,19 +531,13 @@ shveu_wait(SHVEU *veu)
 		/* free locally alloacted surfaces */
 		if (veu->src_hw.py != veu->src_user.py) {
 			size_t len = size_y(veu->src_hw.format, veu->src_hw.h * veu->src_hw.w);
+			len += size_c(veu->src_hw.format, veu->src_hw.h * veu->src_hw.w);
 			uiomux_free(veu->uiomux, UIOMUX_SH_VEU, veu->src_hw.py, len);
-		}
-		if (veu->src_hw.pc != veu->src_user.pc) {
-			size_t len = size_c(veu->src_hw.format, veu->src_hw.h * veu->src_hw.w);
-			uiomux_free(veu->uiomux, UIOMUX_SH_VEU, veu->src_hw.pc, len);
 		}
 		if (veu->dst_hw.py != veu->dst_user.py) {
 			size_t len = size_y(veu->dst_hw.format, veu->dst_hw.h * veu->dst_hw.w);
+			len += size_c(veu->dst_hw.format, veu->dst_hw.h * veu->dst_hw.w);
 			uiomux_free(veu->uiomux, UIOMUX_SH_VEU, veu->dst_hw.py, len);
-		}
-		if (veu->dst_hw.pc != veu->dst_user.pc) {
-			size_t len = size_c(veu->dst_hw.format, veu->dst_hw.h * veu->dst_hw.w);
-			uiomux_free(veu->uiomux, UIOMUX_SH_VEU, veu->dst_hw.pc, len);
 		}
 	}
 
