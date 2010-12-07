@@ -1,0 +1,68 @@
+libshveu Release 1.5.0
+======================
+
+libshveu: A library for controlling SH-Mobile VEU
+
+The source archive, and more information about the library are available from:
+
+	http://oss.renesas.com/modules/document/?libshveu
+
+New in this release
+-------------------
+
+This release changes the API to use virtual addresses rather than physical
+addresses. If the virtual address corresponds to a contiguous buffer that can
+be directly accessed by the VEU (i.e. allocated or registered with UIOMux), no
+copying is performed. Otherwise the data is copied accordingly.
+
+This release also adds basic support for scaling in bundles of lines instead of
+whole images.
+
+Changes
+-------
+
+This release includes the following changes since version 1.4.2:
+
+Phil Edworthy (24):
+      Fix required version of UIOmux
+      Change allocation of temp HW buffer so it's a single block.
+      Display debug info on surfaces before scaling
+      Replace all sh_ prefixes with ren_
+      Removed surface selections from new api.
+      Change common function names to reflect purpose
+      Move to userspace addresses
+      Don't need NV12/NV16 formats with alpha, implicit in the surface spec
+      Specify functions in header as inline
+      Add other sh video buffer types
+      Separate generic SH video buffer types & funcs.
+      Make format look up check each entry in a table.
+      Fix NV12 size calculation
+      Add better information on usage
+      tools: Add test code for bundle mode
+      Fix overwritting input structs.
+      New api using structs for surfaces & selections
+      Added bundle mode.
+      Make shveu-display tool work without ncurses
+      RGB24 (packed) fixed.
+      Whitespace formatting only
+      Remove local m4 macro as it's not needed
+      Add 24-bit BGR in/out support.
+      docs: Fix kernel cmd line arg for VEU memory
+
+ Makefile.am                    |    2 -
+ README                         |   38 ++-
+ TODO                           |    7 +-
+ configure.ac                   |   20 +-
+ include/shveu/veu_colorspace.h |  340 ++++++++++++-------
+ m4/as-ac-expand.m4             |   43 ---
+ src/libshveu/Version_script.in |    6 +-
+ src/libshveu/shveu_regs.h      |    2 +
+ src/libshveu/veu.c             |  738 ++++++++++++++++++----------------------
+ src/tools/Makefile.am          |    6 +-
+ src/tools/display.c            |   92 +-----
+ src/tools/display.h            |   44 ---
+ src/tools/shveu-convert.c      |  175 ++++------
+ src/tools/shveu-display.c      |  228 +++++++------
+ 14 files changed, 808 insertions(+), 933 deletions(-)
+ delete mode 100644 m4/as-ac-expand.m4
+
