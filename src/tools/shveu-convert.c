@@ -374,6 +374,10 @@ int main (int argc, char * argv[])
 		}
 	}
 
+	/* Setup memory pitch */
+	src.pitch = src.w;
+	dst.pitch = dst.w;
+
 	/* Check that all parameters are set */
 	if (src.format == REN_UNKNOWN) {
 		fprintf (stderr, "ERROR: Input colorspace unspecified\n");
