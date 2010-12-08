@@ -1,0 +1,25 @@
+libshveu Release 1.5.1
+======================
+
+libshveu: A library for controlling SH-Mobile VEU
+
+The source archive, and more information about the library are available from:
+
+	http://oss.renesas.com/modules/document/?libshveu
+
+New in this release
+-------------------
+
+Fix to shcodecs-convert tool only.
+
+Changes
+-------
+
+This release includes the following changes since version 1.5.0:
+
+Phil Edworthy (1):
+      Tools: Fix convert - surface pitch not initialised
+
+ src/tools/shveu-convert.c |    4 ++++
+ 1 files changed, 4 insertions(+), 0 deletions(-)
+
