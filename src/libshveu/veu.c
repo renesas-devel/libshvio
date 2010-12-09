@@ -322,8 +322,10 @@ shveu_setup(
 	unsigned long Y, C;
 	const struct veu_format_info *src_info = fmt_info(src_surface->format);
 	const struct veu_format_info *dst_info = fmt_info(dst_surface->format);
-	struct ren_vid_surface *src = &veu->src_hw;
-	struct ren_vid_surface *dst = &veu->dst_hw;
+	struct ren_vid_surface local_src;
+	struct ren_vid_surface local_dst;
+	struct ren_vid_surface *src = &local_src;
+	struct ren_vid_surface *dst = &local_dst;
 
 	dbg(__func__, __LINE__, "src_user", src_surface);
 	dbg(__func__, __LINE__, "dst_user", dst_surface);
@@ -355,11 +357,15 @@ shveu_setup(
 	if (get_hw_surface(veu->uiomux, dst, dst_surface) < 0)
 		return -1;
 
-	/* Keep track of the requsted output surface */
+	uiomux_lock (veu->uiomux, UIOMUX_SH_VEU);
+
+	/* Keep track of the requsted surfaces */
 	veu->src_user = *src_surface;
 	veu->dst_user = *dst_surface;
 
-	uiomux_lock (veu->uiomux, UIOMUX_SH_VEU);
+	/* Keep track of the actual surfaces used */
+	veu->src_hw = local_src;
+	veu->dst_hw = local_dst;
 
 	/* reset */
 	write_reg(ump, 0x100, VBSRR);
@@ -521,9 +527,6 @@ shveu_wait(SHVEU *veu)
 
 	/* End of VEU operation? */
 	if (vevtr & 1) {
-		uiomux_unlock(veu->uiomux, UIOMUX_SH_VEU);
-		complete = 1;
-
 		dbg(__func__, __LINE__, "src_hw", &veu->src_hw);
 		dbg(__func__, __LINE__, "dst_hw", &veu->dst_hw);
 		copy_surface(&veu->dst_user, &veu->dst_hw);
@@ -539,6 +542,9 @@ shveu_wait(SHVEU *veu)
 			len += size_c(veu->dst_hw.format, veu->dst_hw.h * veu->dst_hw.w);
 			uiomux_free(veu->uiomux, UIOMUX_SH_VEU, veu->dst_hw.py, len);
 		}
+
+		uiomux_unlock(veu->uiomux, UIOMUX_SH_VEU);
+		complete = 1;
 	}
 
 	return complete;
