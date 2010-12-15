@@ -16,6 +16,6 @@ noinst_HEADERS = shveu_regs.h
 libshveu_la_SOURCES = \
 	veu.c
 
-libshveu_la_CFLAGS = -v -Wall -O2 -I $(srcdir) -fPIC -fno-common
+libshveu_la_CFLAGS = $(UIOMUX_CFLAGS)
 libshveu_la_LDFLAGS = -version-info @SHARED_VERSION_INFO@ @SHLIB_VERSION_ARG@
-libshveu_la_LIBADD =
+libshveu_la_LIBADD = $(UIOMUX_LIBS)
