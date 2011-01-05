@@ -203,7 +203,7 @@ static void set_scale(struct uio_map *ump, int vertical,
 
 	/* Fix calculation for 1 to 1 scaling */
 	if (size_in == size_out){
-		mant = 0;
+		mant = 1;
 		frac = 0;
 	}
 
