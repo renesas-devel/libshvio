@@ -20,4 +20,4 @@ shveu_convert_LDADD = $(SHVEU_LIBS) $(UIOMUX_LIBS)
 
 shveu_display_SOURCES = shveu-display.c display.c
 shveu_display_CFLAGS = $(SHVEU_CFLAGS) $(UIOMUX_CFLAGS)
-shveu_display_LDADD = $(SHVEU_LIBS) $(UIOMUX_LIBS) $(ncurses_lib)
+shveu_display_LDADD = $(SHVEU_LIBS) $(UIOMUX_LIBS) $(ncurses_lib) -lrt

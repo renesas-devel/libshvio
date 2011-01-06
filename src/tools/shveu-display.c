@@ -15,6 +15,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <getopt.h>
+#include <time.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -241,6 +242,33 @@ static void draw_rect_rgb565(void *surface, uint16_t color, int x, int y, int w,
 	}
 }
 
+#define U_SEC_PER_SEC 1000000
+#define N_SEC_PER_SEC 1000000000
+
+/* Total microseconds elapsed */
+static long
+elapsed_us (struct timespec * start)
+{
+	struct timespec curr;
+	long secs, nsecs;
+	int ret;
+
+	ret = clock_gettime(CLOCK_MONOTONIC, &curr);
+	if (ret == -1) return ret;
+
+	secs = curr.tv_sec - start->tv_sec;
+	nsecs = curr.tv_nsec - start->tv_nsec;
+	if (nsecs < 0) {
+		secs--;
+		nsecs += N_SEC_PER_SEC;
+	}
+
+	return (secs*U_SEC_PER_SEC) + nsecs/1000;
+}
+
+static int nr_scales = 0;
+static long time_total_us = 0;
+
 static void scale(
 	SHVEU *veu,
 	DISPLAY *display,
@@ -262,6 +290,7 @@ static void scale(
 	struct ren_vid_surface dst_surface2;
 	struct ren_vid_rect src_sel;
 	struct ren_vid_rect dst_sel;
+	struct timespec start;
 
 	/* Clear the back buffer */
 	draw_rect_rgb565(lcd_buf, BLACK, 0, 0, lcd_w, lcd_h, lcd_w);
@@ -284,6 +313,8 @@ static void scale(
 
 	src_surface2 = src_surface;
 	dst_surface2 = dst_surface;
+
+	clock_gettime(CLOCK_MONOTONIC, &start);
 
 #ifndef BUNDLE_MODE
 	src_sel.w = w;
@@ -353,6 +384,9 @@ static void scale(
 	shveu_start(veu);
 	shveu_wait(veu);
 #endif	/* BUNDLE_MODE */
+
+	time_total_us += elapsed_us(&start);
+	nr_scales++;
 
 	display_flip(display);
 }
@@ -599,6 +633,7 @@ int main (int argc, char * argv[])
 	uiomux_free (uiomux, UIOMUX_SH_VEU, src_py, input_size);
 	uiomux_close (uiomux);
 
+	printf("Average time for scale is %luus\n", time_total_us/nr_scales);
 
 exit_ok:
 	exit (0);
