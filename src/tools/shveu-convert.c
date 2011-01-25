@@ -86,7 +86,7 @@ static int set_size (char * arg, int * w, int * h)
 		return -1;
 
 	for (i=0; i<nr_sizes; i++) {
-		if (!strncasecmp (arg, sizes[i].name, strlen(sizes[i].name))) {
+		if (!strcasecmp (arg, sizes[i].name)) {
 			*w = sizes[i].w;
 			*h = sizes[i].h;
 			return 0;

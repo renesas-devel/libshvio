@@ -143,7 +143,7 @@ static int set_colorspace (char * arg, int * c)
 		return -1;
 
 	for (i=0; i<nr_exts; i++) {
-		if (!strncasecmp (arg, exts[i].ext, strlen(exts[i].ext))) {
+		if (!strcasecmp (arg, exts[i].ext)) {
 			*c = exts[i].fmt;
 			return 0;
 		}
