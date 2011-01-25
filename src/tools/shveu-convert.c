@@ -386,17 +386,15 @@ int main (int argc, char * argv[])
 		dst.format = src.format;
 
 	guess_size (infilename, src.format, &src.w, &src.h);
-	/* If the output size isn't given and can't be guessed, then default to
-	 * the input size (ie. no rescaling) */
-	if (dst.w == -1 && dst.h == -1) {
-		if (rotation == SHVEU_NO_ROT) {
-			dst.w = src.w;
-			dst.h = src.h;
-		} else {
-			/* Swap width/height for rotation */
-			dst.w = src.h;
-			dst.h = src.w;
-		}
+	if (rotation != SHVEU_NO_ROT) {
+		/* Swap width/height for rotation */
+		dst.w = src.h;
+		dst.h = src.w;
+	} else if (dst.w == -1 && dst.h == -1) {
+		/* If the output size isn't given and can't be guessed, then default to
+		 * the input size (ie. no rescaling) */
+		dst.w = src.w;
+		dst.h = src.h;
 	}
 
 	/* Setup memory pitch */
