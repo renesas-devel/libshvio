@@ -50,6 +50,8 @@ usage (const char * progname)
 	printf ("  -c, --input-colorspace (RGB565, RGB888, RGBx888, NV12, YCbCr420, NV16, YCbCr422)\n");
 	printf ("                         Specify input colorspace\n");
 	printf ("  -s, --input-size       Set the input image size (qcif, cif, qvga, vga, d1, 720p)\n");
+	printf ("  -W, --width            Set the input image width\n");
+	printf ("  -H, --height           Set the input image height\n");
 	printf ("\nControl keys\n");
 	printf ("  +/-                    Zoom in/out\n");
 	printf ("  Cursor keys            Pan\n");
@@ -419,7 +421,7 @@ int main (int argc, char * argv[])
 	int error = 0;
 
 	int c;
-	char * optstring = "hvc:s:";
+	char * optstring = "hvc:s:W:H:";
 
 #ifdef HAVE_GETOPT_LONG
 	static struct option long_options[] = {
@@ -427,6 +429,8 @@ int main (int argc, char * argv[])
 		{"version", no_argument, 0, 'v'},
 		{"input-colorspace", required_argument, 0, 'c'},
 		{"input-size", required_argument, 0, 's'},
+		{"width", required_argument, 0, 'W'},
+		{"height", required_argument, 0, 'H'},
 		{NULL,0,0,0}
 	};
 #endif
@@ -457,6 +461,12 @@ int main (int argc, char * argv[])
 			break;
 		case 's': /* input size */
 			set_size (optarg, &input_w, &input_h);
+			break;
+		case 'W': /* input size */
+			input_w = strtoul(optarg, NULL, 10);
+			break;
+		case 'H': /* input size */
+			input_h = strtoul(optarg, NULL, 10);
 			break;
 		default:
 			break;
