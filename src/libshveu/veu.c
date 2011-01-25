@@ -221,7 +221,7 @@ static void set_scale(struct uio_map *ump, int vertical,
 	write_reg(ump, value, VRFCR);
 
 	/* Assumption that anything newer than VEU2H has VRPBR */
-	if (!veu_is_veu2h(ump))
+	if (!veu_is_veu2h(ump)) {
 		if (size_out >= size_in)
 			vb = 64;
 		else {
