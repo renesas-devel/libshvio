@@ -118,10 +118,31 @@ typedef struct SHVEU SHVEU;
 SHVEU *shveu_open(void);
 
 /**
+ * Open a VEU device with the specified name.
+ * If more than one VEU is available on the platform, each VEU
+ * has a name such as 'VEU0', 'VEU1', and so on. This API will allow
+ * to open a specific VEU by shveu_open_named("VEU0") for instance.
+ * \retval 0 Failure, otherwise VEU handle.
+ */
+SHVEU *shveu_open_named(const char *name);
+
+/**
  * Close a VEU device.
  * \param veu VEU handle
  */
 void shveu_close(SHVEU *veu);
+
+/**
+ * Query a list of VEU available on this platform.
+ * Returns the references to the names of available VEU.
+ * If you need to modify the returned array of strings, please copy the
+ * array and strings before you do so. The result is shared by all callers
+ * of this API in the same process context.
+ * \param names List of VEU available. The array is terminated with NULL.
+ * \param count Number of VEU.
+ * \retval 0 on success; -1 on failure.
+ */
+int shveu_list_veu(char ***names, int *count);
 
 #include <shveu/veu_colorspace.h>
 
@@ -130,4 +151,3 @@ void shveu_close(SHVEU *veu);
 #endif
 
 #endif /* __SHVEU_H__ */
-

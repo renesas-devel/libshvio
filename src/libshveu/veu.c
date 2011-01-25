@@ -61,6 +61,7 @@ struct uio_map {
 
 struct SHVEU {
 	UIOMux *uiomux;
+	uiomux_resource_t uiores;
 	struct uio_map uio_mmio;
 	struct ren_vid_surface src_user;
 	struct ren_vid_surface src_hw;
@@ -121,6 +122,7 @@ static void copy_surface(
 /* Check/create surface that can be accessed by the hardware */
 static int get_hw_surface(
 	UIOMux * uiomux,
+	uiomux_resource_t resource,
 	struct ren_vid_surface *out,
 	const struct ren_vid_surface *in)
 {
@@ -140,7 +142,7 @@ static int get_hw_surface(
 		size_t len = size_y(in->format, in->h * in->w);
 		if (in->pc) len += size_c(in->format, in->h * in->w);
 
-		out->py = uiomux_malloc(uiomux, UIOMUX_SH_VEU, len, 32);
+		out->py = uiomux_malloc(uiomux, resource, len, 32);
 		if (!out->py)
 			return -1;
 
@@ -273,7 +275,7 @@ static int format_supported(ren_vid_format_t fmt)
 	return 0;
 }
 
-SHVEU *shveu_open(void)
+SHVEU *shveu_open_named(const char *name)
 {
 	SHVEU *veu;
 	int ret;
@@ -282,11 +284,18 @@ SHVEU *shveu_open(void)
 	if (!veu)
 		goto err;
 
-	veu->uiomux = uiomux_open();
+	if (!name) {
+		veu->uiomux = uiomux_open();
+		veu->uiores = UIOMUX_SH_VEU;
+	} else {
+		const char *blocks[2] = { name, NULL };
+		veu->uiomux = uiomux_open_named(blocks);
+		veu->uiores = (1 << 0);
+	}
 	if (!veu->uiomux)
 		goto err;
 
-	ret = uiomux_get_mmio (veu->uiomux, UIOMUX_SH_VEU,
+	ret = uiomux_get_mmio (veu->uiomux, veu->uiores,
 		&veu->uio_mmio.address,
 		&veu->uio_mmio.size,
 		&veu->uio_mmio.iomem);
@@ -300,6 +309,11 @@ err:
 	return 0;
 }
 
+SHVEU *shveu_open(void)
+{
+	return shveu_open_named(NULL);
+}
+
 void shveu_close(SHVEU *veu)
 {
 	if (veu) {
@@ -307,6 +321,47 @@ void shveu_close(SHVEU *veu)
 			uiomux_close(veu->uiomux);
 		free(veu);
 	}
+}
+
+#define SHVEU_UIO_VEU_MAX	(8)
+#define SHVEU_UIO_PREFIX	"VEU"
+#define SHVEU_UIO_PREFIX_LEN	(3)
+
+int
+shveu_list_veu(char ***names, int *count)
+{
+	static char *cache[SHVEU_UIO_VEU_MAX];
+	static int cache_count = -1;
+
+	char **result;
+	int i, n;;
+
+	if (cache_count != -1)
+		goto done;
+
+	if (uiomux_list_device(&result, &n) < 0) {
+		goto err;
+	}
+
+
+	/*
+	 * XXX: We can return up to (SHVEU_UIO_VEU_MAX) VEU count.
+	 * If there's more than (SHVEU_UIO_VEU_MAX) VEUs available
+	 * in the future. It has to be extended.
+	 */
+	cache_count = 0;
+	memset(cache, 0, sizeof(cache));
+	for (i = 0; i < n && cache_count < SHVEU_UIO_VEU_MAX; i++) {
+		if (!strncmp(SHVEU_UIO_PREFIX, result[i], SHVEU_UIO_PREFIX_LEN))
+			cache[cache_count++] = result[i];
+	}
+done:
+	*names = cache;
+	*count = cache_count;
+	return 0;
+
+err:
+	return -1;
 }
 
 int
@@ -349,15 +404,15 @@ shveu_setup(
 		return -1;
 
 	/* source - use a buffer the hardware can access */
-	if (get_hw_surface(veu->uiomux, src, src_surface) < 0)
+	if (get_hw_surface(veu->uiomux, veu->uiores, src, src_surface) < 0)
 		return -1;
 	copy_surface(src, src_surface);
 
 	/* destination - use a buffer the hardware can access */
-	if (get_hw_surface(veu->uiomux, dst, dst_surface) < 0)
+	if (get_hw_surface(veu->uiomux, veu->uiores, dst, dst_surface) < 0)
 		return -1;
 
-	uiomux_lock (veu->uiomux, UIOMUX_SH_VEU);
+	uiomux_lock (veu->uiomux, veu->uiores);
 
 	/* Keep track of the requsted surfaces */
 	veu->src_user = *src_surface;
@@ -450,7 +505,7 @@ shveu_setup(
 	return 0;
 
 fail:
-	uiomux_unlock(veu->uiomux, UIOMUX_SH_VEU);
+	uiomux_unlock(veu->uiomux, veu->uiores);
 	return -1;
 }
 
@@ -520,7 +575,7 @@ shveu_wait(SHVEU *veu)
 	unsigned long vstar;
 	int complete = 0;
 
-	uiomux_sleep(veu->uiomux, UIOMUX_SH_VEU);
+	uiomux_sleep(veu->uiomux, veu->uiores);
 
 	vevtr = read_reg(ump, VEVTR);
 	write_reg(ump, 0, VEVTR);   /* ack interrupts */
@@ -535,15 +590,15 @@ shveu_wait(SHVEU *veu)
 		if (veu->src_hw.py != veu->src_user.py) {
 			size_t len = size_y(veu->src_hw.format, veu->src_hw.h * veu->src_hw.w);
 			len += size_c(veu->src_hw.format, veu->src_hw.h * veu->src_hw.w);
-			uiomux_free(veu->uiomux, UIOMUX_SH_VEU, veu->src_hw.py, len);
+			uiomux_free(veu->uiomux, veu->uiores, veu->src_hw.py, len);
 		}
 		if (veu->dst_hw.py != veu->dst_user.py) {
 			size_t len = size_y(veu->dst_hw.format, veu->dst_hw.h * veu->dst_hw.w);
 			len += size_c(veu->dst_hw.format, veu->dst_hw.h * veu->dst_hw.w);
-			uiomux_free(veu->uiomux, UIOMUX_SH_VEU, veu->dst_hw.py, len);
+			uiomux_free(veu->uiomux, veu->uiores, veu->dst_hw.py, len);
 		}
 
-		uiomux_unlock(veu->uiomux, UIOMUX_SH_VEU);
+		uiomux_unlock(veu->uiomux, veu->uiores);
 		complete = 1;
 	}
 
@@ -586,4 +641,3 @@ shveu_rotate(
 
 	return ret;
 }
-

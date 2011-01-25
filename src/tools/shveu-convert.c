@@ -50,6 +50,8 @@ usage (const char * progname)
 	printf ("                         [default is same as input size, ie. no rescaling]\n");
 	printf ("  -r, --rotate	          Rotate the image 90 degrees clockwise\n");
 	printf ("\nMiscellaneous options\n");
+	printf ("  -l, --list             List VEU available and exit\n");
+	printf ("  -u, --veu veu          Specifiy the name of VEU to use (default: any VEU)\n");
 	printf ("  -h, --help             Display this help and exit\n");
 	printf ("  -v, --version          Output version information and exit\n");
 	printf ("\nFile extensions are interpreted as follows unless otherwise specified:\n");
@@ -250,11 +252,13 @@ int main (int argc, char * argv[])
 
 	int show_version = 0;
 	int show_help = 0;
+	int show_list_veu = 0;
 	char * progname;
+	char * veudev = NULL;
 	int error = 0;
 
 	int c;
-	char * optstring = "hvo:c:s:C:S:r";
+	char * optstring = "hvo:c:s:C:S:ru:l";
 
 #ifdef HAVE_GETOPT_LONG
 	static struct option long_options[] = {
@@ -266,6 +270,8 @@ int main (int argc, char * argv[])
 		{"output-colorspace", required_argument, 0, 'C'},
 		{"output-size", required_argument, 0, 'S'},
 		{"rotate", no_argument, 0, 'r'},
+		{"veu", required_argument, 0, 'u'},
+		{"list", no_argument, 0, 'l'},
 		{NULL,0,0,0}
 	};
 #endif
@@ -322,6 +328,12 @@ int main (int argc, char * argv[])
 		case 'r': /* rotate */
 			rotation = SHVEU_ROT_90;
 			break;
+		case 'l':
+			show_list_veu = 1;
+			break;
+		case 'u':
+			veudev = optarg;
+			break;
 		default:
 			break;
 		}
@@ -335,7 +347,20 @@ int main (int argc, char * argv[])
 		usage (progname);
 	}
 
-	if (show_version || show_help) {
+	if (show_list_veu) {
+		char **veu;
+		int i, n;
+
+		if (shveu_list_veu(&veu, &n) < 0) {
+			printf ("Can't get a list of VEU available...\n");
+		} else {
+			for(i = 0; i < n; i++)
+				printf("%s", veu[i]);
+			printf("Total: %d VEUs available.\n", n);
+		}
+	}
+
+	if (show_version || show_help || show_list_veu) {
 		goto exit_ok;
 	}
 
@@ -457,7 +482,12 @@ int main (int argc, char * argv[])
 		}
 	}
 
-	if ((veu = shveu_open ()) == 0) {
+	if (!veudev)
+		veu = shveu_open();
+	else
+		veu = shveu_open_named(veudev);
+
+	if (veu == 0) {
 		fprintf (stderr, "Error opening VEU\n");
 		goto exit_err;
 	}
