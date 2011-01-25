@@ -220,8 +220,8 @@ static void set_scale(struct uio_map *ump, int vertical,
 	}
 	write_reg(ump, value, VRFCR);
 
-	/* VEU3F needs additional VRPBR register handling */
-	if (veu_is_veu3f(ump)) {
+	/* Assumption that anything newer than VEU2H has VRPBR */
+	if (!veu_is_veu2h(ump))
 		if (size_out >= size_in)
 			vb = 64;
 		else {
