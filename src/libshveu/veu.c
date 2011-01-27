@@ -369,7 +369,7 @@ shveu_setup(
 	SHVEU *veu,
 	const struct ren_vid_surface *src_surface,
 	const struct ren_vid_surface *dst_surface,
-	shveu_rotation_t rotate)
+	shveu_rotation_t filter_control)
 {
 	struct uio_map *ump = &veu->uio_mmio;
 	float scale_x, scale_y;
@@ -439,14 +439,25 @@ shveu_setup(
 	/* destination */
 	Y = uiomux_all_virt_to_phys(dst->py);
 	C = uiomux_all_virt_to_phys(dst->pc);
-	if (rotate) {
-		int src_vblk  = (src->h+15)/16;
-		int src_sidev = (src->h+15)%16 + 1;
-		int offset;
 
-		offset = size_y(dst->format, ((src_vblk-2)*16 + src_sidev));
-		Y += offset;
-		C += offset;
+	if (filter_control & 0xFF) {
+		if ((filter_control & 0xFF) == 1) {
+			/* Rotate 90 (D) */
+			Y += size_y(dst->format, src->h-16);
+			C += size_y(dst->format, src->h-16);
+		} if ((filter_control & 0xFF) == 2) {
+			/* Rotate 270 (E) */
+			Y += size_y(dst->format, (src->w-16) * dst->pitch);
+			C += size_c(dst->format, (src->w-16) * dst->pitch);
+		} if ((filter_control & 0xFF) == 0x10) {
+			/* Horizontal Mirror (A) */
+			Y += size_y(dst->format, src->w);
+			C += size_y(dst->format, src->w);
+		} if ((filter_control & 0xFF) == 0x20) {
+			/* Vertical Mirror (B) */
+			Y += size_y(dst->format, (src->h-1) * dst->pitch);
+			C += size_c(dst->format, (src->h-2) * dst->pitch);
+		}
 	}
 	write_reg(ump, Y, VDAYR);
 	write_reg(ump, C, VDACR);
@@ -490,17 +501,14 @@ shveu_setup(
 
 	/* Scaling */
 	write_reg(ump, 0, VRFCR);
-	if (!rotate) {
+	if (!(filter_control & 0x3)) {
+		/* Not a rotate operation */
 		set_scale(ump, 0, src->w, dst->w, 0);
 		set_scale(ump, 1, src->h, dst->h, 0);
 	}
 
-	/* Rotate */
-	if (rotate) {
-		write_reg(ump, 1, VFMCR);
-	} else {
-		write_reg(ump, 0, VFMCR);
-	}
+	/* Filter control - directly pass user arg to register */
+	write_reg(ump, filter_control, VFMCR);
 
 	return 0;
 

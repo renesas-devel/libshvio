@@ -48,7 +48,7 @@ usage (const char * progname)
 	printf ("  Note that the VEU does not support combined rotation and scaling.\n");
 	printf ("  -S, --output-size      Set the output image size (qcif, cif, qvga, vga, d1, 720p)\n");
 	printf ("                         [default is same as input size, ie. no rescaling]\n");
-	printf ("  -r, --rotate	          Rotate the image 90 degrees clockwise\n");
+	printf ("  -f, --filter	          Set the Filter Mode control register (see HW maual)\n");
 	printf ("\nMiscellaneous options\n");
 	printf ("  -l, --list             List VEU available and exit\n");
 	printf ("  -u, --veu veu          Specifiy the name of VEU to use (default: any VEU)\n");
@@ -258,7 +258,7 @@ int main (int argc, char * argv[])
 	int error = 0;
 
 	int c;
-	char * optstring = "hvo:c:s:C:S:ru:l";
+	char * optstring = "hvo:c:s:C:S:f:u:l";
 
 #ifdef HAVE_GETOPT_LONG
 	static struct option long_options[] = {
@@ -269,7 +269,7 @@ int main (int argc, char * argv[])
 		{"input-size", required_argument, 0, 's'},
 		{"output-colorspace", required_argument, 0, 'C'},
 		{"output-size", required_argument, 0, 'S'},
-		{"rotate", no_argument, 0, 'r'},
+		{"filter", required_argument, 0, 'f'},
 		{"veu", required_argument, 0, 'u'},
 		{"list", no_argument, 0, 'l'},
 		{NULL,0,0,0}
@@ -325,8 +325,8 @@ int main (int argc, char * argv[])
 		case 'S': /* output size */
 			set_size (optarg, &dst.w, &dst.h);
 			break;
-		case 'r': /* rotate */
-			rotation = SHVEU_ROT_90;
+		case 'f': /* filter mode */
+			rotation = strtoul(optarg, NULL, 0);
 			break;
 		case 'l':
 			show_list_veu = 1;
@@ -386,7 +386,7 @@ int main (int argc, char * argv[])
 		dst.format = src.format;
 
 	guess_size (infilename, src.format, &src.w, &src.h);
-	if (rotation != SHVEU_NO_ROT) {
+	if (rotation & 0xF) {
 		/* Swap width/height for rotation */
 		dst.w = src.h;
 		dst.h = src.w;

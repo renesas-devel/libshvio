@@ -4,5 +4,6 @@ file removing that task, in the same commit.
 
 * use /proc/cpuinfo to check for old hardware (prev-VEU5)
 
-* add rotations other than 90 (ie. 180, 270), flip etc.
+* add combinations of rotations & flip.
+
 
