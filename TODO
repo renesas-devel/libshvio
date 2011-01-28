@@ -4,6 +4,4 @@ file removing that task, in the same commit.
 
 * use /proc/cpuinfo to check for old hardware (prev-VEU5)
 
-* add combinations of rotations & flip.
-
 

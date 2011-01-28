@@ -441,22 +441,37 @@ shveu_setup(
 	C = uiomux_all_virt_to_phys(dst->pc);
 
 	if (filter_control & 0xFF) {
-		if ((filter_control & 0xFF) == 1) {
-			/* Rotate 90 (D) */
-			Y += size_y(dst->format, src->h-16);
-			C += size_y(dst->format, src->h-16);
-		} if ((filter_control & 0xFF) == 2) {
-			/* Rotate 270 (E) */
-			Y += size_y(dst->format, (src->w-16) * dst->pitch);
-			C += size_c(dst->format, (src->w-16) * dst->pitch);
-		} if ((filter_control & 0xFF) == 0x10) {
+		if ((filter_control & 0xFF) == 0x10) {
 			/* Horizontal Mirror (A) */
 			Y += size_y(dst->format, src->w);
 			C += size_y(dst->format, src->w);
-		} if ((filter_control & 0xFF) == 0x20) {
+		} else if ((filter_control & 0xFF) == 0x20) {
 			/* Vertical Mirror (B) */
 			Y += size_y(dst->format, (src->h-1) * dst->pitch);
 			C += size_c(dst->format, (src->h-2) * dst->pitch);
+		} else if ((filter_control & 0xFF) == 0x30) {
+			/* Rotate 180 (C) */
+			Y += size_y(dst->format, src->w);
+			C += size_y(dst->format, src->w);
+			Y += size_y(dst->format, src->h * dst->pitch);
+			C += size_c(dst->format, src->h * dst->pitch);
+		} else if ((filter_control & 0xFF) == 1) {
+			/* Rotate 90 (D) */
+			Y += size_y(dst->format, src->h-16);
+			C += size_y(dst->format, src->h-16);
+		} else if ((filter_control & 0xFF) == 2) {
+			/* Rotate 270 (E) */
+			Y += size_y(dst->format, (src->w-16) * dst->pitch);
+			C += size_c(dst->format, (src->w-16) * dst->pitch);
+		} else if ((filter_control & 0xFF) == 0x11) {
+			/* Rotate 90 & Mirror Horizontal (F) */
+			/* Nothing to do */
+		} else if ((filter_control & 0xFF) == 0x21) {
+			/* Rotate 90 & Mirror Vertical (G) */
+			Y += size_y(dst->format, src->h-16);
+			C += size_y(dst->format, src->h-16);
+			Y += size_y(dst->format, (src->w-16) * dst->pitch);
+			C += size_c(dst->format, (src->w-16) * dst->pitch);
 		}
 	}
 	write_reg(ump, Y, VDAYR);
