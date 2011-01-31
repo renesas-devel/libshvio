@@ -1,0 +1,50 @@
+libshveu Release 1.6.0
+======================
+
+libshveu: A library for controlling SH-Mobile VEU
+
+The source archive, and more information about the library are available from:
+
+	http://oss.renesas.com/modules/document/?libshveu
+
+New in this release
+-------------------
+
+This release adds a function to the API to allow opening a named VEU device.
+This release also adds support for rotation and mirroring of images.
+
+Changes
+-------
+
+This release includes the following changes since version 1.5.2:
+
+Phil Edworthy (10):
+      Add support for combinations of rotate & flip
+      Add rotate 270 and Horizontal/Vetical mirroring
+      Tools: convert: If rotating, force output size
+      Tools: display: Add ability to set any input size
+      Tools: Match colorspace & size exactly
+      Fix last check in - oops
+      Fix scaling on AP4 (SH7372) for VEU2 and VEU3
+      Tools: fix: all RGB* was matched as RGB16.
+      Tools: Record the time taken to scale images
+      Fix CFLAGS
+
+Takanari Hayama (1):
+      Tools: fix: all RGB* was matched as RGB16.
+      Support mulitple VEU handling.
+
+Damian Hobson-Garcia (1):
+      set the resize value in VRFCR to 1.0 when no resizing is done
+
+
+ TODO                      |    1 -
+ configure.ac              |    2 +-
+ include/shveu/shveu.h     |   22 +++++++-
+ src/libshveu/Makefile.am  |    4 +-
+ src/libshveu/veu.c        |  141 ++++++++++++++++++++++++++++++++++----------
+ src/tools/Makefile.am     |    4 +-
+ src/tools/shveu-convert.c |   68 +++++++++++++++------
+ src/tools/shveu-display.c |   51 +++++++++++++++-
+ 8 files changed, 232 insertions(+), 61 deletions(-)
+
