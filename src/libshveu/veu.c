@@ -383,16 +383,23 @@ shveu_setup(
 	const struct ren_vid_surface *dst_surface,
 	shveu_rotation_t filter_control)
 {
-	struct uio_map *ump = &veu->uio_mmio;
+	struct uio_map *ump;
 	float scale_x, scale_y;
 	unsigned long temp;
 	unsigned long Y, C;
-	const struct veu_format_info *src_info = fmt_info(src_surface->format);
-	const struct veu_format_info *dst_info = fmt_info(dst_surface->format);
+	const struct veu_format_info *src_info;
+	const struct veu_format_info *dst_info;
 	struct ren_vid_surface local_src;
 	struct ren_vid_surface local_dst;
 	struct ren_vid_surface *src = &local_src;
 	struct ren_vid_surface *dst = &local_dst;
+
+	if (!veu || !src_surface || !dst_surface)
+		return -1;
+
+	ump = &veu->uio_mmio;
+	src_info = fmt_info(src_surface->format);
+	dst_info = fmt_info(dst_surface->format);
 
 	dbg(__func__, __LINE__, "src_user", src_surface);
 	dbg(__func__, __LINE__, "dst_user", dst_surface);
