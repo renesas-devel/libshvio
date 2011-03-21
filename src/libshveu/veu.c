@@ -172,32 +172,32 @@ static int get_hw_surface(
 
 /* Helper functions for reading registers. */
 
-static unsigned long read_reg(struct uio_map *ump, int reg_nr)
+static unsigned long read_reg(void *base_addr, int reg_nr)
 {
-	volatile unsigned long *reg = ump->iomem + reg_nr;
+	volatile unsigned long *reg = base_addr + reg_nr;
 
 	return *reg;
 }
 
-static void write_reg(struct uio_map *ump, unsigned long value, int reg_nr)
+static void write_reg(void *base_addr, unsigned long value, int reg_nr)
 {
-	volatile unsigned long *reg = ump->iomem + reg_nr;
+	volatile unsigned long *reg = base_addr + reg_nr;
 
 	*reg = value;
 }
 
-static int veu_is_veu2h(struct uio_map *ump)
+static int veu_is_veu2h(SHVEU *veu)
 {
 	/* Is this a VEU2H on SH7723? */
-	return ump->size == 0x27c;
+	return veu->uio_mmio.size == 0x27c;
 }
 
-static int veu_is_veu3f(struct uio_map *ump)
+static int veu_is_veu3f(SHVEU *veu)
 {
-	return ump->size == 0xcc;
+	return veu->uio_mmio.size == 0xcc;
 }
 
-static void set_scale(struct uio_map *ump, int vertical,
+static void set_scale(SHVEU *veu, void *base_addr, int vertical,
 		      int size_in, int size_out, int zoom)
 {
 	unsigned long fixpoint, mant, frac, value, vb;
@@ -208,7 +208,7 @@ static void set_scale(struct uio_map *ump, int vertical,
 	mant = fixpoint / 4096;
 	frac = fixpoint - (mant * 4096);
 
-	if (veu_is_veu2h(ump)) {
+	if (veu_is_veu2h(veu)) {
 		if (frac & 0x07) {
 			frac &= ~0x07;
 
@@ -226,7 +226,7 @@ static void set_scale(struct uio_map *ump, int vertical,
 	}
 
 	/* set scale */
-	value = read_reg(ump, VRFCR);
+	value = read_reg(base_addr, VRFCR);
 	if (vertical) {
 		value &= ~0xffff0000;
 		value |= ((mant << 12) | frac) << 16;
@@ -234,10 +234,10 @@ static void set_scale(struct uio_map *ump, int vertical,
 		value &= ~0xffff;
 		value |= (mant << 12) | frac;
 	}
-	write_reg(ump, value, VRFCR);
+	write_reg(base_addr, value, VRFCR);
 
 	/* Assumption that anything newer than VEU2H has VRPBR */
-	if (!veu_is_veu2h(ump)) {
+	if (!veu_is_veu2h(veu)) {
 		if (size_out >= size_in)
 			vb = 64;
 		else {
@@ -253,7 +253,7 @@ static void set_scale(struct uio_map *ump, int vertical,
 		}
 
 		/* set resize passband register */
-		value = read_reg(ump, VRPBR);
+		value = read_reg(base_addr, VRPBR);
 		if (vertical) {
 			value &= ~0xffff0000;
 		value |= vb << 16;
@@ -261,16 +261,16 @@ static void set_scale(struct uio_map *ump, int vertical,
 			value &= ~0xffff;
 			value |= vb;
 		}
-		write_reg(ump, value, VRPBR);
+		write_reg(base_addr, value, VRPBR);
 	}
 }
 
 static void
-set_clip(struct uio_map *ump, int vertical, int clip_out)
+set_clip(void *base_addr, int vertical, int clip_out)
 {
 	unsigned long value;
 
-	value = read_reg(ump, VRFSR);
+	value = read_reg(base_addr, VRFSR);
 
 	if (vertical) {
 		value &= ~0xffff0000;
@@ -280,7 +280,7 @@ set_clip(struct uio_map *ump, int vertical, int clip_out)
 		value |= clip_out;
 	}
 
-	write_reg(ump, value, VRFSR);
+	write_reg(base_addr, value, VRFSR);
 }
 
 static int format_supported(ren_vid_format_t fmt)
@@ -387,7 +387,6 @@ shveu_setup(
 	const struct ren_vid_surface *dst_surface,
 	shveu_rotation_t filter_control)
 {
-	struct uio_map *ump;
 	float scale_x, scale_y;
 	unsigned long temp;
 	unsigned long Y, C;
@@ -397,11 +396,11 @@ shveu_setup(
 	struct ren_vid_surface local_dst;
 	struct ren_vid_surface *src = &local_src;
 	struct ren_vid_surface *dst = &local_dst;
+	void *base_addr;
 
 	if (!veu || !src_surface || !dst_surface)
 		return -1;
 
-	ump = &veu->uio_mmio;
 	src_info = fmt_info(src_surface->format);
 	dst_info = fmt_info(dst_surface->format);
 
@@ -416,7 +415,7 @@ shveu_setup(
 		return -1;
 
 	/* Scaling limits */
-	if (veu_is_veu2h(ump)) {
+	if (veu_is_veu2h(veu)) {
 		if ((scale_x > 8.0) || (scale_y > 8.0))
 			return -1;
 	} else {
@@ -437,6 +436,8 @@ shveu_setup(
 
 	uiomux_lock (veu->uiomux, veu->uiores);
 
+	base_addr = veu->uio_mmio.iomem;
+
 	/* Keep track of the requsted surfaces */
 	veu->src_user = *src_surface;
 	veu->dst_user = *dst_surface;
@@ -446,18 +447,18 @@ shveu_setup(
 	veu->dst_hw = local_dst;
 
 	/* reset */
-	write_reg(ump, 0x100, VBSRR);
+	write_reg(base_addr, 0x100, VBSRR);
 
 	/* default to not using bundle mode */
-	write_reg(ump, 0, VBSSR);
+	write_reg(base_addr, 0, VBSSR);
 
 	/* source */
 	Y = uiomux_all_virt_to_phys(src->py);
 	C = uiomux_all_virt_to_phys(src->pc);
-	write_reg(ump, Y, VSAYR);
-	write_reg(ump, C, VSACR);
-	write_reg(ump, (src->h << 16) | src->w, VESSR);
-	write_reg(ump, size_y(src->format, src->pitch), VESWR);
+	write_reg(base_addr, Y, VSAYR);
+	write_reg(base_addr, C, VSACR);
+	write_reg(base_addr, (src->h << 16) | src->w, VESSR);
+	write_reg(base_addr, size_y(src->format, src->pitch), VESWR);
 
 	/* destination */
 	Y = uiomux_all_virt_to_phys(dst->py);
@@ -497,9 +498,9 @@ shveu_setup(
 			C += size_c(dst->format, (src->w-16) * dst->pitch);
 		}
 	}
-	write_reg(ump, Y, VDAYR);
-	write_reg(ump, C, VDACR);
-	write_reg(ump, size_y(dst->format, dst->pitch), VEDWR);
+	write_reg(base_addr, Y, VDAYR);
+	write_reg(base_addr, C, VDACR);
+	write_reg(base_addr, size_y(dst->format, dst->pitch), VEDWR);
 
 	/* byte/word swapping */
 	temp = 0;
@@ -507,7 +508,7 @@ shveu_setup(
 	temp |= src_info->vswpr;
 	temp |= dst_info->vswpr << 4;
 #endif
-	write_reg(ump, temp, VSWPR);
+	write_reg(base_addr, temp, VSWPR);
 
 	/* transform control */
 	temp = src_info->vtrcr_src;
@@ -516,37 +517,37 @@ shveu_setup(
 		temp |= VTRCR_RY_SRC_RGB;
 	if (different_colorspace(src_surface->format, dst_surface->format))
 		temp |= VTRCR_TE_BIT_SET;
-	write_reg(ump, temp, VTRCR);
+	write_reg(base_addr, temp, VTRCR);
 
-	if (veu_is_veu2h(ump)) {
+	if (veu_is_veu2h(veu)) {
 		/* color conversion matrix */
-		write_reg(ump, 0x0cc5, VMCR00);
-		write_reg(ump, 0x0950, VMCR01);
-		write_reg(ump, 0x0000, VMCR02);
-		write_reg(ump, 0x397f, VMCR10);
-		write_reg(ump, 0x0950, VMCR11);
-		write_reg(ump, 0x3cdd, VMCR12);
-		write_reg(ump, 0x0000, VMCR20);
-		write_reg(ump, 0x0950, VMCR21);
-		write_reg(ump, 0x1023, VMCR22);
-		write_reg(ump, 0x00800010, VCOFFR);
+		write_reg(base_addr, 0x0cc5, VMCR00);
+		write_reg(base_addr, 0x0950, VMCR01);
+		write_reg(base_addr, 0x0000, VMCR02);
+		write_reg(base_addr, 0x397f, VMCR10);
+		write_reg(base_addr, 0x0950, VMCR11);
+		write_reg(base_addr, 0x3cdd, VMCR12);
+		write_reg(base_addr, 0x0000, VMCR20);
+		write_reg(base_addr, 0x0950, VMCR21);
+		write_reg(base_addr, 0x1023, VMCR22);
+		write_reg(base_addr, 0x00800010, VCOFFR);
 	}
 
 	/* Clipping */
-	write_reg(ump, 0, VRFSR);
-	set_clip(ump, 0, dst->w);
-	set_clip(ump, 1, dst->h);
+	write_reg(base_addr, 0, VRFSR);
+	set_clip(base_addr, 0, dst->w);
+	set_clip(base_addr, 1, dst->h);
 
 	/* Scaling */
-	write_reg(ump, 0, VRFCR);
+	write_reg(base_addr, 0, VRFCR);
 	if (!(filter_control & 0x3)) {
 		/* Not a rotate operation */
-		set_scale(ump, 0, src->w, dst->w, 0);
-		set_scale(ump, 1, src->h, dst->h, 0);
+		set_scale(veu, base_addr, 0, src->w, dst->w, 0);
+		set_scale(veu, base_addr, 1, src->h, dst->h, 0);
 	}
 
 	/* Filter control - directly pass user arg to register */
-	write_reg(ump, filter_control, VFMCR);
+	write_reg(base_addr, filter_control, VFMCR);
 
 	return 0;
 
@@ -561,13 +562,13 @@ shveu_set_src(
 	void *src_py,
 	void *src_pc)
 {
-	struct uio_map *ump = &veu->uio_mmio;
+	void *base_addr = veu->uio_mmio.iomem;
 	unsigned long Y, C;
 
 	Y = uiomux_all_virt_to_phys(src_py);
 	C = uiomux_all_virt_to_phys(src_pc);
-	write_reg(ump, Y, VSAYR);
-	write_reg(ump, C, VSACR);
+	write_reg(base_addr, Y, VSAYR);
+	write_reg(base_addr, C, VSACR);
 }
 
 void
@@ -576,25 +577,25 @@ shveu_set_dst(
 	void *dst_py,
 	void *dst_pc)
 {
-	struct uio_map *ump = &veu->uio_mmio;
+	void *base_addr = veu->uio_mmio.iomem;
 	unsigned long Y, C;
 
 	Y = uiomux_all_virt_to_phys(dst_py);
 	C = uiomux_all_virt_to_phys(dst_pc);
-	write_reg(ump, Y, VDAYR);
-	write_reg(ump, C, VDACR);
+	write_reg(base_addr, Y, VDAYR);
+	write_reg(base_addr, C, VDACR);
 }
 
 void
 shveu_start(SHVEU *veu)
 {
-	struct uio_map *ump = &veu->uio_mmio;
+	void *base_addr = veu->uio_mmio.iomem;
 
 	/* enable interrupt in VEU */
-	write_reg(ump, 1, VEIER);
+	write_reg(base_addr, 1, VEIER);
 
 	/* start operation */
-	write_reg(ump, 1, VESTR);
+	write_reg(base_addr, 1, VESTR);
 }
 
 void
@@ -602,29 +603,29 @@ shveu_start_bundle(
 	SHVEU *veu,
 	int bundle_lines)
 {
-	struct uio_map *ump = &veu->uio_mmio;
+	void *base_addr = veu->uio_mmio.iomem;
 
-	write_reg(ump, bundle_lines, VBSSR);
+	write_reg(base_addr, bundle_lines, VBSSR);
 
 	/* enable interrupt in VEU */
-	write_reg(ump, 0x101, VEIER);
+	write_reg(base_addr, 0x101, VEIER);
 
 	/* start operation */
-	write_reg(ump, 0x101, VESTR);
+	write_reg(base_addr, 0x101, VESTR);
 }
 
 int
 shveu_wait(SHVEU *veu)
 {
-	struct uio_map *ump = &veu->uio_mmio;
+	void *base_addr = veu->uio_mmio.iomem;
 	unsigned long vevtr;
 	unsigned long vstar;
 	int complete = 0;
 
 	uiomux_sleep(veu->uiomux, veu->uiores);
 
-	vevtr = read_reg(ump, VEVTR);
-	write_reg(ump, 0, VEVTR);   /* ack interrupts */
+	vevtr = read_reg(base_addr, VEVTR);
+	write_reg(base_addr, 0, VEVTR);   /* ack interrupts */
 
 	/* End of VEU operation? */
 	if (vevtr & 1) {
