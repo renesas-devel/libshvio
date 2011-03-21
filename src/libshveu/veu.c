@@ -32,6 +32,7 @@
 #include "config.h"
 #endif
 
+#include <stdint.h>
 #include <string.h>
 #include <stdio.h>
 #include <errno.h>
@@ -56,9 +57,9 @@
 
 struct veu_format_info {
 	ren_vid_format_t fmt;
-	unsigned long vtrcr_src;
-	unsigned long vtrcr_dst;
-	unsigned long vswpr;
+	uint32_t vtrcr_src;
+	uint32_t vtrcr_dst;
+	uint32_t vswpr;
 };
 
 static const struct veu_format_info veu_fmts[] = {
@@ -142,8 +143,6 @@ static int get_hw_surface(
 	struct ren_vid_surface *out,
 	const struct ren_vid_surface *in)
 {
-	unsigned long phys;
-	int y;
 	int alloc = 0;
 
 	if (in == NULL || out == NULL)
@@ -172,16 +171,16 @@ static int get_hw_surface(
 
 /* Helper functions for reading registers. */
 
-static unsigned long read_reg(void *base_addr, int reg_nr)
+static uint32_t read_reg(void *base_addr, int reg_nr)
 {
-	volatile unsigned long *reg = base_addr + reg_nr;
+	volatile uint32_t *reg = base_addr + reg_nr;
 
 	return *reg;
 }
 
-static void write_reg(void *base_addr, unsigned long value, int reg_nr)
+static void write_reg(void *base_addr, uint32_t value, int reg_nr)
 {
-	volatile unsigned long *reg = base_addr + reg_nr;
+	volatile uint32_t *reg = base_addr + reg_nr;
 
 	*reg = value;
 }
@@ -200,7 +199,7 @@ static int veu_is_veu3f(SHVEU *veu)
 static void set_scale(SHVEU *veu, void *base_addr, int vertical,
 		      int size_in, int size_out, int zoom)
 {
-	unsigned long fixpoint, mant, frac, value, vb;
+	uint32_t fixpoint, mant, frac, value, vb;
 
 	/* calculate FRAC and MANT */
 
@@ -268,7 +267,7 @@ static void set_scale(SHVEU *veu, void *base_addr, int vertical,
 static void
 set_clip(void *base_addr, int vertical, int clip_out)
 {
-	unsigned long value;
+	uint32_t value;
 
 	value = read_reg(base_addr, VRFSR);
 
@@ -388,8 +387,8 @@ shveu_setup(
 	shveu_rotation_t filter_control)
 {
 	float scale_x, scale_y;
-	unsigned long temp;
-	unsigned long Y, C;
+	uint32_t temp;
+	uint32_t Y, C;
 	const struct veu_format_info *src_info;
 	const struct veu_format_info *dst_info;
 	struct ren_vid_surface local_src;
@@ -563,7 +562,7 @@ shveu_set_src(
 	void *src_pc)
 {
 	void *base_addr = veu->uio_mmio.iomem;
-	unsigned long Y, C;
+	uint32_t Y, C;
 
 	Y = uiomux_all_virt_to_phys(src_py);
 	C = uiomux_all_virt_to_phys(src_pc);
@@ -578,7 +577,7 @@ shveu_set_dst(
 	void *dst_pc)
 {
 	void *base_addr = veu->uio_mmio.iomem;
-	unsigned long Y, C;
+	uint32_t Y, C;
 
 	Y = uiomux_all_virt_to_phys(dst_py);
 	C = uiomux_all_virt_to_phys(dst_pc);
@@ -618,8 +617,8 @@ int
 shveu_wait(SHVEU *veu)
 {
 	void *base_addr = veu->uio_mmio.iomem;
-	unsigned long vevtr;
-	unsigned long vstar;
+	uint32_t vevtr;
+	uint32_t vstar;
 	int complete = 0;
 
 	uiomux_sleep(veu->uiomux, veu->uiores);
