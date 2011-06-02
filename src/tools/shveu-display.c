@@ -47,7 +47,7 @@ usage (const char * progname)
 	printf ("\n");
 	printf ("If no input filename is specified, a simple image will be created.\n");
 	printf ("\nInput options\n");
-	printf ("  -c, --input-colorspace (RGB565, RGB888, RGBx888, NV12, YCbCr420, NV16, YCbCr422)\n");
+	printf ("  -c, --input-colorspace (RGB565, RGB888, BGR888, RGBx888, NV12, YCbCr420, NV16, YCbCr422)\n");
 	printf ("                         Specify input colorspace\n");
 	printf ("  -s, --input-size       Set the input image size (qcif, cif, qvga, vga, d1, 720p)\n");
 	printf ("  -W, --width            Set the input image width\n");
@@ -125,6 +125,7 @@ static const struct extensions_t exts[] = {
 	{ "rgb",      REN_RGB565 },
 	{ "RGB888",   REN_RGB24 },
 	{ "888",      REN_RGB24 },
+	{ "BGR888",   REN_BGR24 },
 	{ "RGBx888",  REN_RGB32 },
 	{ "x888",     REN_RGB32 },
 	{ "YCbCr420", REN_NV12 },
