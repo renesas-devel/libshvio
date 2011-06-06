@@ -326,7 +326,7 @@ err:
 
 SHVEU *shveu_open(void)
 {
-	return shveu_open_named(NULL);
+	return shveu_open_named("VEU");
 }
 
 void shveu_close(SHVEU *veu)
