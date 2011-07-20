@@ -55,6 +55,12 @@
 
 /* #define DEBUG */
 
+#ifdef DEBUG
+#define debug_info(s) fprintf(stderr, "%s: %s\n", __func__, s)
+#else
+#define debug_info(s)
+#endif
+
 struct veu_format_info {
 	ren_vid_format_t fmt;
 	uint32_t vtrcr_src;
@@ -321,6 +327,7 @@ SHVEU *shveu_open_named(const char *name)
 	return veu;
 
 err:
+	debug_info("ERR: error detected");
 	shveu_close(veu);
 	return 0;
 }
@@ -377,6 +384,7 @@ done:
 	return 0;
 
 err:
+	debug_info("ERR: error detected");
 	return -1;
 }
 
@@ -398,8 +406,10 @@ shveu_setup(
 	struct ren_vid_surface *dst = &local_dst;
 	void *base_addr;
 
-	if (!veu || !src_surface || !dst_surface)
+	if (!veu || !src_surface || !dst_surface) {
+		debug_info("ERR: Invalid input - need src and dest");
 		return -1;
+	}
 
 	src_info = fmt_info(src_surface->format);
 	dst_info = fmt_info(dst_surface->format);
@@ -411,28 +421,40 @@ shveu_setup(
 	scale_x = (float)dst_surface->w / src_surface->w;
 	scale_y = (float)dst_surface->h / src_surface->h;
 
-	if (!format_supported(src_surface->format) || !format_supported(dst_surface->format))
+	if (!format_supported(src_surface->format) || !format_supported(dst_surface->format)) {
+		debug_info("ERR: Invalid surface format!");
 		return -1;
+	}
 
 	/* Scaling limits */
 	if (veu_is_veu2h(veu)) {
-		if ((scale_x > 8.0) || (scale_y > 8.0))
+		if ((scale_x > 8.0) || (scale_y > 8.0)) {
+			debug_info("ERR: Outside scaling limits!");
 			return -1;
+		}
 	} else {
-		if ((scale_x > 16.0) || (scale_y > 16.0))
+		if ((scale_x > 16.0) || (scale_y > 16.0)) {
+			debug_info("ERR: Outside scaling limits!");
 			return -1;
+		}
 	}
-	if ((scale_x < 1.0/16.0) || (scale_y < 1.0/16.0))
+	if ((scale_x < 1.0/16.0) || (scale_y < 1.0/16.0)) {
+		debug_info("ERR: Outside scaling limits!");
 		return -1;
+	}
 
 	/* source - use a buffer the hardware can access */
-	if (get_hw_surface(veu->uiomux, veu->uiores, src, src_surface) < 0)
+	if (get_hw_surface(veu->uiomux, veu->uiores, src, src_surface) < 0) {
+		debug_info("ERR: src is not accessible by hardware");
 		return -1;
+	}
 	copy_surface(src, src_surface);
 
 	/* destination - use a buffer the hardware can access */
-	if (get_hw_surface(veu->uiomux, veu->uiores, dst, dst_surface) < 0)
+	if (get_hw_surface(veu->uiomux, veu->uiores, dst, dst_surface) < 0) {
+		debug_info("ERR: dest is not accessible by hardware");
 		return -1;
+	}
 
 	uiomux_lock (veu->uiomux, veu->uiores);
 
