@@ -280,7 +280,7 @@ static void scale(
 	void *pc,
 	unsigned long w,
 	unsigned long h,
-	int x,	/* Centre co-ordinates */
+	int x,	/* Center co-ordinates */
 	int y,
 	int src_fmt)
 {
@@ -537,7 +537,7 @@ int main (int argc, char * argv[])
 	}
 
 	if ((uiomux = uiomux_open()) == 0) {
-		fprintf (stderr, "Error opening UIOmux\n");
+		fprintf (stderr, "Error opening UIOMux\n");
 		goto exit_err;
 	}
 

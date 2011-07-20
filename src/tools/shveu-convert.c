@@ -48,10 +48,10 @@ usage (const char * progname)
 	printf ("  Note that the VEU does not support combined rotation and scaling.\n");
 	printf ("  -S, --output-size      Set the output image size (qcif, cif, qvga, vga, d1, 720p)\n");
 	printf ("                         [default is same as input size, ie. no rescaling]\n");
-	printf ("  -f, --filter	          Set the Filter Mode control register (see HW maual)\n");
+	printf ("  -f, --filter	          Set the Filter Mode control register (see HW manual)\n");
 	printf ("\nMiscellaneous options\n");
 	printf ("  -l, --list             List VEU available and exit\n");
-	printf ("  -u, --veu veu          Specifiy the name of VEU to use (default: any VEU)\n");
+	printf ("  -u, --veu veu          Specify the name of VEU to use (default: any VEU)\n");
 	printf ("  -h, --help             Display this help and exit\n");
 	printf ("  -v, --version          Output version information and exit\n");
 	printf ("\nFile extensions are interpreted as follows unless otherwise specified:\n");

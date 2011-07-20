@@ -438,7 +438,7 @@ shveu_setup(
 
 	base_addr = veu->uio_mmio.iomem;
 
-	/* Keep track of the requsted surfaces */
+	/* Keep track of the requested surfaces */
 	veu->src_user = *src_surface;
 	veu->dst_user = *dst_surface;
 
@@ -633,7 +633,7 @@ shveu_wait(SHVEU *veu)
 		dbg(__func__, __LINE__, "dst_hw", &veu->dst_hw);
 		copy_surface(&veu->dst_user, &veu->dst_hw);
 
-		/* free locally alloacted surfaces */
+		/* free locally allocated surfaces */
 		if (veu->src_hw.py != veu->src_user.py) {
 			size_t len = size_y(veu->src_hw.format, veu->src_hw.h * veu->src_hw.w);
 			len += size_c(veu->src_hw.format, veu->src_hw.h * veu->src_hw.w);
