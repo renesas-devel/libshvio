@@ -371,7 +371,7 @@ int main (int argc, char * argv[])
 	}
 
 	infilename = argv[optind++];
-	
+
 	if (optind < argc) {
 		outfilename = argv[optind++];
 	}

@@ -62,34 +62,34 @@ either rotation or scaling on each input frame.
 
     Usage: shveu-convert [options] [input-filename [output-filename]]
     Convert raw image data using the SH-Mobile VEU.
-    
+
     If no output filename is specified, data is output to stdout.
     Specify '-' to force output to be written to stdout.
-    
+
     If no input filename is specified, data is read from stdin.
     Specify '-' to force input to be read from stdin.
-    
+
     Input options
       -c, --input-colorspace (RGB565, NV12, YCbCr420, YCbCr422)
                              Specify input colorspace
       -s, --input-size       Set the input image size (qcif, cif, qvga, vga, d1)
-    
+
     Output options
       -o filename, --output filename
                              Specify output filename (default: stdout)
       -C, --output-colorspace (RGB565, NV12, YCbCr420, YCbCr422)
                              Specify output colorspace
-    
+
     Transform options
       Note that the VEU does not support combined rotation and scaling.
       -S, --output-size      Set the output image size (qcif, cif, qvga, vga, d1)
                              [default is same as input size, ie. no rescaling]
       -r, --rotate           Rotate the image 90 degrees clockwise
-    
+
     Miscellaneous options
       -h, --help             Display this help and exit
       -v, --version          Output version information and exit
-    
+
     File extensions are interpreted as follows unless otherwise specified:
       .yuv    YCbCr420
       .rgb    RGB565

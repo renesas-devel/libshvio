@@ -39,4 +39,3 @@ for dst in 888 rgb yuv x888; do \
     convert -size 480x640 -depth 8 out_${f}_${dst}.rgb  out_${f}_${dst}.png
   done; \
 done
-
