@@ -26,6 +26,8 @@
 #ifndef __REN_VIDEO_BUFFER_H__
 #define __REN_VIDEO_BUFFER_H__
 
+#include <stdint.h>
+
 /* Notes on YUV/YCbCr:
  * YUV historically refers to analogue color space, and YCbCr to digital.
  * The formula used to convert to/from RGB is BT.601 or BT.709. HDTV specifies
@@ -232,6 +234,28 @@ shveu_set_dst(
 	SHVEU *veu,
 	void *dst_py,
 	void *dst_pc);
+
+/** Set the source addresses. This is typically used for bundle mode.
+ * \param veu VEU handle
+ * \param src_py Address of Y or RGB plane of source image
+ * \param src_pc Address of CbCr plane of source image (ignored for RGB)
+ */
+void
+shveu_set_src_phys(
+	SHVEU *veu,
+	uint32_t src_py,
+	uint32_t src_pc);
+
+/** Set the destination addresses. This is typically used for bundle mode.
+ * \param veu VEU handle
+ * \param dst_py Address of Y or RGB plane of destination image
+ * \param dst_pc Address of CbCr plane of destination image (ignored for RGB)
+ */
+void
+shveu_set_dst_phys(
+	SHVEU *veu,
+	uint32_t dst_py,
+	uint32_t dst_pc);
 
 /** Start a VEU operation (non-bundle mode).
  * \param veu VEU handle

@@ -594,6 +594,18 @@ shveu_set_src(
 }
 
 void
+shveu_set_src_phys(
+	SHVEU *veu,
+	uint32_t src_py,
+	uint32_t src_pc)
+{
+	void *base_addr = veu->uio_mmio.iomem;
+
+	write_reg(base_addr, src_py, VSAYR);
+	write_reg(base_addr, src_pc, VSACR);
+}
+
+void
 shveu_set_dst(
 	SHVEU *veu,
 	void *dst_py,
@@ -606,6 +618,18 @@ shveu_set_dst(
 	C = uiomux_all_virt_to_phys(dst_pc);
 	write_reg(base_addr, Y, VDAYR);
 	write_reg(base_addr, C, VDACR);
+}
+
+void
+shveu_set_dst_phys(
+	SHVEU *veu,
+	uint32_t dst_py,
+	uint32_t dst_pc)
+{
+	void *base_addr = veu->uio_mmio.iomem;
+
+	write_reg(base_addr, dst_py, VDAYR);
+	write_reg(base_addr, dst_pc, VDACR);
 }
 
 void

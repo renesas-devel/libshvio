@@ -13,6 +13,8 @@
 		shveu_setup;
 		shveu_set_src;
 		shveu_set_dst;
+		shveu_set_src_phys;
+		shveu_set_dst_phys;
 		shveu_start;
 		shveu_wait;
 		shveu_start_locked;
