@@ -53,7 +53,7 @@
 
 #endif
 
-/* #define DEBUG */
+/* #define DEBUG 2 */
 
 #ifdef DEBUG
 #define debug_info(s) fprintf(stderr, "%s: %s\n", __func__, s)
@@ -181,13 +181,22 @@ static int get_hw_surface(
 static uint32_t read_reg(void *base_addr, int reg_nr)
 {
 	volatile uint32_t *reg = base_addr + reg_nr;
+	uint32_t value = *reg;
 
-	return *reg;
+#if (DEBUG == 2)
+	fprintf(stderr, " read_reg[0x%08x] returned 0x%08x\n", reg_nr, value);
+#endif
+
+	return value;
 }
 
 static void write_reg(void *base_addr, uint32_t value, int reg_nr)
 {
 	volatile uint32_t *reg = base_addr + reg_nr;
+
+#if (DEBUG == 2)
+	fprintf(stderr, " write_reg[0x%08x] = 0x%08x\n", reg_nr, value);
+#endif
 
 	*reg = value;
 }
