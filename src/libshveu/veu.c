@@ -91,6 +91,8 @@ struct SHVEU {
 	struct ren_vid_surface src_hw;
 	struct ren_vid_surface dst_user;
 	struct ren_vid_surface dst_hw;
+	int bt709;
+	int full_range;
 };
 
 
@@ -548,6 +550,10 @@ shveu_setup(
 		temp |= VTRCR_RY_SRC_RGB;
 	if (different_colorspace(src_surface->format, dst_surface->format))
 		temp |= VTRCR_TE_BIT_SET;
+	if (veu->bt709)
+		temp |= VTRCR_BT709;
+	if (veu->full_range)
+		temp |= VTRCR_FULL_COLOR_CONV;
 	write_reg(base_addr, temp, VTRCR);
 
 	if (veu_is_veu2h(veu)) {
@@ -639,6 +645,16 @@ shveu_set_dst_phys(
 
 	write_reg(base_addr, dst_py, VDAYR);
 	write_reg(base_addr, dst_pc, VDACR);
+}
+
+void
+shveu_set_color_conversion(
+	SHVEU *veu,
+	int bt709,
+	int full_range)
+{
+	veu->bt709 = bt709;
+	veu->full_range = full_range;
 }
 
 void

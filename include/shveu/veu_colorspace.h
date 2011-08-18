@@ -257,6 +257,17 @@ shveu_set_dst_phys(
 	uint32_t dst_py,
 	uint32_t dst_pc);
 
+/** Set the colour space conversion attributes.
+ * \param veu VEU handle
+ * \param bt709 If true use ITU-R BT709, otherwise use ITU-R BT.601 (default)
+ * \param full_range If true use YCbCr[0,255], otherwise use Y[16,235], CbCr[16,240] (default)
+ */
+void
+shveu_set_color_conversion(
+	SHVEU *veu,
+	int bt709,
+	int full_range);
+
 /** Start a VEU operation (non-bundle mode).
  * \param veu VEU handle
  */
