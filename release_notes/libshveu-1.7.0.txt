@@ -1,0 +1,60 @@
+libshveu Release 1.7.0
+======================
+
+libshveu: A library for controlling SH-Mobile VEU
+
+The source archive, and more information about the library are available from:
+
+	http://oss.renesas.com/modules/document/?libshveu
+
+New in this release
+-------------------
+
+This release changes the license to MIT.
+It also adds functions to the API to give more flexibility in using bundle
+mode and also to control color conversion attributes.
+
+Changes
+-------
+
+This release includes the following changes since version 1.6.0:
+
+Phil Edworthy (13):
+      Add fn to allow the user to select color conversion attributes
+      Add register read/wrtite tracing
+      Add fns to set the src & dst physical addresses
+      cosmetic: Remove trailing whitespace
+      tools: Unmap frame buffer
+      Add debug messages when things go wrong.
+      Spelling corrected
+      Specify a default UIO device name.
+      Use fixed width types to access the hardware
+      Get base address of IP block earlier so that code is easier to port
+      Changed to MIT license
+      Check args for NULL ptrs
+      Test: Add simple script to test VEU operations
+
+Damian Hobson-Garcia (2):
+      Add BGR24 support to tools
+      Add support for BGR24 input and output
+
+Katsuya Matsubara (1):
+      define __LITTLE_ENDIAN and __BIG_ENDIAN using __BYTE_ORDER if not defined
+
+
+ COPYING                        |  498 ++--------------------------------------
+ README                         |   28 +--
+ configure.ac                   |   16 --
+ include/shveu/shveu.h          |   36 ++--
+ include/shveu/veu_colorspace.h |   61 ++++-
+ src/libshveu/Android.mk        |    1 -
+ src/libshveu/Version_script.in |    5 +-
+ src/libshveu/shveu_regs.h      |   28 ++-
+ src/libshveu/veu.c             |  299 ++++++++++++++++--------
+ src/tools/display.c            |   13 +-
+ src/tools/shveu-convert.c      |   11 +-
+ src/tools/shveu-display.c      |    7 +-
+ src/tools/test.sh              |   41 ++++
+ 13 files changed, 372 insertions(+), 672 deletions(-)
+ create mode 100644 src/tools/test.sh
+
