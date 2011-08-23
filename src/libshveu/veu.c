@@ -479,7 +479,16 @@ shveu_setup(
 	veu->src_hw = local_src;
 	veu->dst_hw = local_dst;
 
-	/* reset */
+	/* Software reset */
+	if (read_reg(base_addr, VESTR) & 0x1)
+		write_reg(base_addr, 0, VESTR);
+	while (read_reg(base_addr, VESTR) & 1)
+		;
+
+	/* Clear VEU end interrupt flag */
+	write_reg(base_addr, 0, VEVTR);
+
+	/* VEU Module reset */
 	write_reg(base_addr, 0x100, VBSRR);
 
 	/* default to not using bundle mode */
