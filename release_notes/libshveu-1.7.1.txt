@@ -1,0 +1,26 @@
+libshveu Release 1.7.1
+======================
+
+libshveu: A library for controlling SH-Mobile VEU
+
+The source archive, and more information about the library are available from:
+
+	http://oss.renesas.com/modules/document/?libshveu
+
+New in this release
+-------------------
+
+This release fixes how the VEU is reset. Previously it was possible to lock up
+the VEU by terminating a bundle-mode operation part way through.
+
+Changes
+-------
+
+This release includes the following changes since version 1.7.0:
+
+Phil Edworthy (1):
+      Fix reset code.
+
+ src/libshveu/veu.c |   11 ++++++++++-
+ 1 files changed, 10 insertions(+), 1 deletions(-)
+
