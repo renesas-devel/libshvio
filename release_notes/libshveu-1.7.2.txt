@@ -1,0 +1,25 @@
+libshveu Release 1.7.2
+======================
+
+libshveu: A library for controlling SH-Mobile VEU
+
+The source archive, and more information about the library are available from:
+
+	http://oss.renesas.com/modules/document/?libshveu
+
+New in this release
+-------------------
+
+This release fixes building with C++ code, where uint32_t is not available.
+
+Changes
+-------
+
+This release includes the following changes since version 1.7.1:
+
+Phil Edworthy (1):
+      Replace uint32_t in API with unsigned int.
+
+ include/shveu/veu_colorspace.h |   10 ++++------
+ 1 files changed, 4 insertions(+), 6 deletions(-)
+
