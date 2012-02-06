@@ -1,5 +1,5 @@
 /*
- * Tool to demonstrate VEU hardware acceleration of raw image scaling.
+ * Tool to demonstrate VIO/VEU hardware acceleration of raw image scaling.
  *
  * The RGB/YCbCr source image is read from a file, scaled and displayed on the
  * framebuffer. It uses an ncurses interface to allow the user to zoom in/out
@@ -30,7 +30,7 @@
 #endif
 #endif
 #include <uiomux/uiomux.h>
-#include "shveu/shveu.h"
+#include "shvio/shvio.h"
 #include "display.h"
 
 /* RGB565 colors */
@@ -43,7 +43,7 @@ static void
 usage (const char * progname)
 {
 	printf ("Usage: %s [options] [input-filename]\n", progname);
-	printf ("Processes raw image data using the SH-Mobile VEU and displays on screen.\n");
+	printf ("Processes raw image data using the SH-Mobile VIO/VEU and displays on screen.\n");
 	printf ("\n");
 	printf ("If no input filename is specified, a simple image will be created.\n");
 	printf ("\nInput options\n");
@@ -273,7 +273,7 @@ static int nr_scales = 0;
 static long time_total_us = 0;
 
 static void scale(
-	SHVEU *veu,
+	SHVIO *vio,
 	DISPLAY *display,
 	float scale,
 	void *py,
@@ -362,11 +362,11 @@ static void scale(
 	get_sel_surface(&dst_surface2, &dst_surface, &dst_sel);
 #endif	/* !BUNDLE_MODE */
 
-	shveu_setup(
-		veu,
+	shvio_setup(
+		vio,
 		&src_surface2,
 		&dst_surface2,
-		SHVEU_NO_ROT);
+		SHVIO_NO_ROT);
 
 #ifdef BUNDLE_MODE
 	{
@@ -374,18 +374,18 @@ static void scale(
 		int nr_lines = 16;
 
 		while (end == 0) {
-			shveu_set_src(veu, py, pc);
-			shveu_set_dst(veu, lcd_buf, 0);
+			shvio_set_src(vio, py, pc);
+			shvio_set_dst(vio, lcd_buf, 0);
 			py += offset_y(src_surface.format, 0, nr_lines, src_surface.pitch);
 			pc += offset_c(src_surface.format, 0, nr_lines, src_surface.pitch);
 			lcd_buf += offset_y(dst_surface.format, 0, nr_lines, dst_surface.pitch);
-			shveu_start_bundle(veu, nr_lines);
-			end = shveu_wait(veu);
+			shvio_start_bundle(vio, nr_lines);
+			end = shvio_wait(vio);
 		}
 	}
 #else
-	shveu_start(veu);
-	shveu_wait(veu);
+	shvio_start(vio);
+	shvio_wait(vio);
 #endif	/* BUNDLE_MODE */
 
 	time_total_us += elapsed_us(&start);
@@ -398,7 +398,7 @@ static void scale(
 int main (int argc, char * argv[])
 {
 	UIOMux *uiomux = NULL;
-	SHVEU *veu = NULL;
+	SHVIO *vio = NULL;
 	DISPLAY *display = NULL;
 	char * infilename = NULL;
 	FILE * infile = NULL;
@@ -541,8 +541,8 @@ int main (int argc, char * argv[])
 		goto exit_err;
 	}
 
-	if ((veu = shveu_open()) == 0) {
-		fprintf (stderr, "Error opening VEU\n");
+	if ((vio = shvio_open()) == 0) {
+		fprintf (stderr, "Error opening VIO\n");
 		goto exit_err;
 	}
 
@@ -591,7 +591,7 @@ int main (int argc, char * argv[])
 			}
 		}
 
-		scale (veu, display, scale_factor, src_py, src_pc, input_w, input_h, x, y, input_colorspace);
+		scale (vio, display, scale_factor, src_py, src_pc, input_w, input_h, x, y, input_colorspace);
 
 #ifdef HAVE_NCURSES
 		key = getch();
@@ -640,7 +640,7 @@ int main (int argc, char * argv[])
 #endif
 
 	display_close(display);
-	shveu_close(veu);
+	shvio_close(vio);
 	uiomux_free (uiomux, UIOMUX_SH_VEU, src_py, input_size);
 	uiomux_close (uiomux);
 
@@ -651,7 +651,7 @@ exit_ok:
 
 exit_err:
 	if (display) display_close(display);
-	if (veu)     shveu_close(veu);
+	if (vio)     shvio_close(vio);
 	if (uiomux)  uiomux_close (uiomux);
 	exit (1);
 }

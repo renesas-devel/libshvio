@@ -6,7 +6,7 @@ SUBDIRS = doc include src
 
 # pkg-config
 pkgconfigdir = $(libdir)/pkgconfig
-pkgconfig_DATA = shveu.pc
+pkgconfig_DATA = shvio.pc
 
 # Extra files to distribute in the source tarball.
-EXTRA_DIST = shveu.pc.in shveu-uninstalled.pc.in
+EXTRA_DIST = shvio.pc.in shvio-uninstalled.pc.in

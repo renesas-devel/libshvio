@@ -3,21 +3,21 @@
 INCLUDES = -I$(top_builddir) \
            -I$(top_srcdir)/include
 
-SHVEUDIR = ../libshveu
-SHVEU_LIBS = $(SHVEUDIR)/libshveu.la
+SHVIODIR = ../libshvio
+SHVIO_LIBS = $(SHVIODIR)/libshvio.la
 
 if HAVE_NCURSES
 ncurses_lib = -lncurses
 endif
 
-bin_PROGRAMS = shveu-convert shveu-display
+bin_PROGRAMS = shvio-convert shvio-display
 
 noinst_HEADERS = display.h
 
-shveu_convert_SOURCES = shveu-convert.c
-shveu_convert_CFLAGS = $(SHVEU_CFLAGS) $(UIOMUX_CFLAGS)
-shveu_convert_LDADD = $(SHVEU_LIBS) $(UIOMUX_LIBS)
+shvio_convert_SOURCES = shvio-convert.c
+shvio_convert_CFLAGS = $(SHVIO_CFLAGS) $(UIOMUX_CFLAGS)
+shvio_convert_LDADD = $(SHVIO_LIBS) $(UIOMUX_LIBS)
 
-shveu_display_SOURCES = shveu-display.c display.c
-shveu_display_CFLAGS = $(SHVEU_CFLAGS) $(UIOMUX_CFLAGS)
-shveu_display_LDADD = $(SHVEU_LIBS) $(UIOMUX_LIBS) $(ncurses_lib) -lrt
+shvio_display_SOURCES = shvio-display.c display.c
+shvio_display_CFLAGS = $(SHVIO_CFLAGS) $(UIOMUX_CFLAGS)
+shvio_display_LDADD = $(SHVIO_LIBS) $(UIOMUX_LIBS) $(ncurses_lib) -lrt

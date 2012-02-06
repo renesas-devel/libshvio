@@ -3,10 +3,10 @@ exec_prefix=
 libdir=${pcfiledir}/src
 includedir=${pcfiledir}/include
 
-Name: shveu uninstalled
-Description: A library for controlling SH-Mobile VEU
+Name: shvio uninstalled
+Description: A library for controlling SH-Mobile VIO/VEU
 Requires:
 Version: @VERSION@
-Libs: -L${libdir} -lshveu
+Libs: -L${libdir} -lshvio
 Libs.private:
 Cflags: -I${includedir}

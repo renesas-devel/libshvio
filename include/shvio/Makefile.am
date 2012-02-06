@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in
 
 # Include files to install
-shveuincludedir = $(includedir)/shveu
+shveuincludedir = $(includedir)/shvio
 shveuinclude_HEADERS = \
-	shveu.h \
-	veu_colorspace.h
+	shvio.h \
+	vio_colorspace.h

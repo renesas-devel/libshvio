@@ -1,14 +1,14 @@
 ################################################################################
-# libshveu: A library for controlling SH-Mobile VEU hardware                   #
+# libshvio: A library for controlling SH-Mobile VIO/VEU hardware               #
 ################################################################################
 
 # Process this file with autoconf to produce a configure script.
 AC_INIT
-AC_CONFIG_SRCDIR([src/libshveu/veu.c])
+AC_CONFIG_SRCDIR([src/libshvio/veu.c])
 
 AC_PREREQ(2.53)
 
-AM_INIT_AUTOMAKE(libshveu, 1.7.2)
+AM_INIT_AUTOMAKE(libshvio, 1.7.2)
 AM_CONFIG_HEADER(config.h)
 
 ################################################################################
@@ -128,10 +128,10 @@ fi
 AM_CONDITIONAL(HAVE_NCURSES, [test "x$HAVE_NCURSES" = "xyes"])
 
 dnl Overall configuration success flag
-shveu_config_ok=yes
+shvio_config_ok=yes
 
-shveu_read_programs=""
-shveu_rw_programs=""
+shvio_read_programs=""
+shvio_rw_programs=""
 
 dnl
 dnl  Configuration option for building of experimental code.
@@ -187,7 +187,7 @@ dnl
 dnl  Configuration tests complete -- provide summary of results.
 dnl
 
-if test $shveu_config_ok = no ; then
+if test $shvio_config_ok = no ; then
 
 AC_MSG_RESULT([
 **************************************************************
@@ -235,13 +235,13 @@ Makefile
 doc/Makefile
 doc/Doxyfile
 include/Makefile
-include/shveu/Makefile
+include/shvio/Makefile
 src/Makefile
-src/libshveu/Version_script
-src/libshveu/Makefile
+src/libshvio/Version_script
+src/libshvio/Makefile
 src/tools/Makefile
-shveu.pc
-shveu-uninstalled.pc
+shvio.pc
+shvio-uninstalled.pc
 ])
 
 AC_MSG_RESULT([
@@ -254,7 +254,7 @@ AC_MSG_RESULT([
 
   Tools:
 
-    shveu-convert ${ncurses_programs}
+    shvio-convert ${ncurses_programs}
 
   Building:
 

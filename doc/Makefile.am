@@ -1,6 +1,6 @@
 docdir=$(prefix)/share/doc/@PACKAGE@
 
-man_MANS = shveu-convert.1
+man_MANS = shvio-convert.1
 
 EXTRA_DIST = $(man_MANS) Doxyfile.in
 
@@ -9,8 +9,8 @@ EXTRA_DIST = $(man_MANS) Doxyfile.in
 noinst_DATA = doxygen-build.stamp
 
 if HAVE_DOXYGEN
-#doxygen-build.stamp: Doxyfile $(top_srcdir)/include/shveu/*.h $(top_srcdir)/src/examples/*.c
-doxygen-build.stamp: Doxyfile $(top_srcdir)/include/shveu/*.h
+#doxygen-build.stamp: Doxyfile $(top_srcdir)/include/shvio/*.h $(top_srcdir)/src/examples/*.c
+doxygen-build.stamp: Doxyfile $(top_srcdir)/include/shvio/*.h
 	doxygen
 	touch doxygen-build.stamp
 else
@@ -19,12 +19,12 @@ doxygen-build.stamp:
 	touch doxygen-build.stamp
 endif
 
-dist_docdir = $(distdir)/libshveu
+dist_docdir = $(distdir)/libshvio
 
 dist-hook:
-	if test -d libshveu; then \
+	if test -d libshvio; then \
 	  mkdir $(dist_docdir); \
-	  for dir in libshveu/*; do \
+	  for dir in libshvio/*; do \
             b=`basename $$dir`; \
             if test $$b != "CVS"; then \
               if test -d $$dir; then \
@@ -40,8 +40,8 @@ dist-hook:
 
 install-data-local: doxygen-build.stamp
 	$(mkinstalldirs) $(DESTDIR)$(docdir)
-	if test -d libshveu; then \
-	  for dir in libshveu/*; do \
+	if test -d libshvio; then \
+	  for dir in libshvio/*; do \
 	    if test -d $$dir; then \
 	      b=`basename $$dir`; \
 	      $(mkinstalldirs) $(DESTDIR)$(docdir)/$$b; \
@@ -56,5 +56,5 @@ uninstall-local:
 	rm -rf $(DESTDIR)$(docdir)
 
 clean-local:
-	if test -d libshveu; then rm -rf libshveu; fi
+	if test -d libshvio; then rm -rf libshvio; fi
 	if test -f doxygen-build.stamp; then rm -f doxygen-build.stamp; fi

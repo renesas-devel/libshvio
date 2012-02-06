@@ -1,5 +1,5 @@
 /*
- * libshveu: A library for controlling SH-Mobile VEU
+ * libshvio: A library for controlling SH-Mobile VIO/VEU
  * Copyright (C) 2009 Renesas Technology Corp.
  * Copyright (C) 2010 Renesas Electronics Corporation
  *

@@ -1,5 +1,5 @@
 /*
- * libshveu: A library for controlling SH-Mobile VEU
+ * libshvio: A library for controlling SH-Mobile VIO/VEU
  * Copyright (C) 2009 Renesas Technology Corp.
  * Copyright (C) 2010 Renesas Electronics Corporation
  *
@@ -183,20 +183,20 @@ static inline void get_sel_surface(
  * Image/Video processing: Scale, rotate, crop, color conversion
  */
 
-#ifndef __VEU_COLORSPACE_H__
-#define __VEU_COLORSPACE_H__
+#ifndef __VIO_COLORSPACE_H__
+#define __VIO_COLORSPACE_H__
 
 
 /** Rotation */
 typedef enum {
-	SHVEU_NO_ROT=0,	/**< No rotation */
-	SHVEU_ROT_90,	/**< Rotate 90 degrees clockwise */
-} shveu_rotation_t;
+	SHVIO_NO_ROT=0,	/**< No rotation */
+	SHVIO_ROT_90,	/**< Rotate 90 degrees clockwise */
+} shvio_rotation_t;
 
 /** Setup a (scale|rotate) & crop between YCbCr & RGB surfaces
  * The scaling factor is calculated from the surface sizes.
  *
- * \param veu VEU handle
+ * \param vio VIO handle
  * \param src_surface Input surface
  * \param dst_surface Output surface
  * \param rotate Rotation to apply
@@ -204,110 +204,110 @@ typedef enum {
  * \retval -1 Error: Attempt to perform simultaneous scaling and rotation
  */
 int
-shveu_setup(
-	SHVEU *veu,
+shvio_setup(
+	SHVIO *vio,
 	const struct ren_vid_surface *src_surface,
 	const struct ren_vid_surface *dst_surface,
-	shveu_rotation_t rotate);
+	shvio_rotation_t rotate);
 
 
 /** Set the source addresses. This is typically used for bundle mode.
- * \param veu VEU handle
+ * \param vio VIO handle
  * \param src_py Address of Y or RGB plane of source image
  * \param src_pc Address of CbCr plane of source image (ignored for RGB)
  */
 void
-shveu_set_src(
-	SHVEU *veu,
+shvio_set_src(
+	SHVIO *vio,
 	void *src_py,
 	void *src_pc);
 
 /** Set the destination addresses. This is typically used for bundle mode.
- * \param veu VEU handle
+ * \param vio VIO handle
  * \param dst_py Address of Y or RGB plane of destination image
  * \param dst_pc Address of CbCr plane of destination image (ignored for RGB)
  */
 void
-shveu_set_dst(
-	SHVEU *veu,
+shvio_set_dst(
+	SHVIO *vio,
 	void *dst_py,
 	void *dst_pc);
 
 /** Set the source addresses. This is typically used for bundle mode.
- * \param veu VEU handle
+ * \param vio VIO handle
  * \param src_py Address of Y or RGB plane of source image
  * \param src_pc Address of CbCr plane of source image (ignored for RGB)
  */
 void
-shveu_set_src_phys(
-	SHVEU *veu,
+shvio_set_src_phys(
+	SHVIO *vio,
 	unsigned int src_py,
 	unsigned int src_pc);
 
 /** Set the destination addresses. This is typically used for bundle mode.
- * \param veu VEU handle
+ * \param vio VIO handle
  * \param dst_py Address of Y or RGB plane of destination image
  * \param dst_pc Address of CbCr plane of destination image (ignored for RGB)
  */
 void
-shveu_set_dst_phys(
-	SHVEU *veu,
+shvio_set_dst_phys(
+	SHVIO *vio,
 	unsigned int dst_py,
 	unsigned int dst_pc);
 
 /** Set the colour space conversion attributes.
- * \param veu VEU handle
+ * \param vio VIO handle
  * \param bt709 If true use ITU-R BT709, otherwise use ITU-R BT.601 (default)
  * \param full_range If true use YCbCr[0,255], otherwise use Y[16,235], CbCr[16,240] (default)
  */
 void
-shveu_set_color_conversion(
-	SHVEU *veu,
+shvio_set_color_conversion(
+	SHVIO *vio,
 	int bt709,
 	int full_range);
 
-/** Start a VEU operation (non-bundle mode).
- * \param veu VEU handle
+/** Start a VIO operation (non-bundle mode).
+ * \param vio VIO handle
  */
 void
-shveu_start(
-	SHVEU *veu);
+shvio_start(
+	SHVIO *vio);
 
-/** Start a VEU operation (bundle mode).
- * \param veu VEU handle
+/** Start a VIO operation (bundle mode).
+ * \param vio VIO handle
  * \param bundle_lines Number of lines to process
  */
 void
-shveu_start_bundle(
-	SHVEU *veu,
+shvio_start_bundle(
+	SHVIO *vio,
 	int bundle_lines);
 
-/** Wait for a VEU operation to complete. The operation is started by a call to shveu_start.
- * \param veu VEU handle
+/** Wait for a VIO operation to complete. The operation is started by a call to shvio_start.
+ * \param vio VIO handle
  */
 int
-shveu_wait(SHVEU *veu);
+shvio_wait(SHVIO *vio);
 
 
 /** Perform scale between YCbCr & RGB surfaces.
  * This operates on entire surfaces and blocks until completion.
  *
- * \param veu VEU handle
+ * \param vio VIO handle
  * \param src_surface Input surface
  * \param dst_surface Output surface
  * \retval 0 Success
  * \retval -1 Error: Unsupported parameters
  */
 int
-shveu_resize(
-	SHVEU *veu,
+shvio_resize(
+	SHVIO *vio,
 	const struct ren_vid_surface *src_surface,
 	const struct ren_vid_surface *dst_surface);
 
 /** Perform rotate between YCbCr & RGB surfaces
  * This operates on entire surfaces and blocks until completion.
  *
- * \param veu VEU handle
+ * \param vio VIO handle
  * \param src_surface Input surface
  * \param dst_surface Output surface
  * \param rotate Rotation to apply
@@ -315,10 +315,10 @@ shveu_resize(
  * \retval -1 Error: Unsupported parameters
  */
 int
-shveu_rotate(
-	SHVEU *veu,
+shvio_rotate(
+	SHVIO *vio,
 	const struct ren_vid_surface *src_surface,
 	const struct ren_vid_surface *dst_surface,
-	shveu_rotation_t rotate);
+	shvio_rotation_t rotate);
 
-#endif				/* __VEU_COLORSPACE_H__ */
+#endif /* __VIO_COLORSPACE_H__ */

@@ -1,19 +1,19 @@
 #!/bin/ash
 #
-# Script to test VEU operations using the tools
+# Script to test VIO operations using the tools
 
 
 # Check all format conversions
 for src in 888 rgb yuv x888; do \
   for dst in 888 rgb yuv x888; do \
-    shveu-convert -s vga -S vga vga.${src} out_${src}.${dst}; \
+    shvio-convert -s vga -S vga vga.${src} out_${src}.${dst}; \
   done; \
 done
 
 # Display them
 for src in 888 rgb yuv x888; do \
   for dst in 888 rgb yuv x888; do \
-    shveu-display -s vga out_${src}.${dst}; \
+    shvio-display -s vga out_${src}.${dst}; \
   done; \
 done
 
@@ -23,7 +23,7 @@ done
 for f in 0x0 0x1 0x2 0x30 0x10 0x20 0x11 0x21; do \
   for src in 888 rgb yuv x888; do \
     for dst in 888 rgb yuv x888; do \
-      shveu-convert -s vga -f $f vga.${src} out_${f}_${src}.${dst}; \
+      shvio-convert -s vga -f $f vga.${src} out_${f}_${src}.${dst}; \
     done; \
   done; \
 done

@@ -1,5 +1,5 @@
 /*
- * Tool to demonstrate VEU hardware acceleration of raw image scaling.
+ * Tool to demonstrate VIO/VEU hardware acceleration of raw image scaling.
  *
  * The RGB/YCbCr source image is read from a file, scaled/rotated and then
  * output to another file.
@@ -19,16 +19,16 @@
 
 #include <uiomux/uiomux.h>
 
-#include "shveu/shveu.h"
+#include "shvio/shvio.h"
 
 /* Rotation: default none */
-static int rotation = SHVEU_NO_ROT;
+static int rotation = SHVIO_NO_ROT;
 
 static void
 usage (const char * progname)
 {
 	printf ("Usage: %s [options] [input-filename [output-filename]]\n", progname);
-	printf ("Convert raw image data using the SH-Mobile VEU.\n");
+	printf ("Convert raw image data using the SH-Mobile VIO/VEU.\n");
 	printf ("\n");
 	printf ("If no output filename is specified, data is output to stdout.\n");
 	printf ("Specify '-' to force output to be written to stdout.\n");
@@ -45,13 +45,13 @@ usage (const char * progname)
 	printf ("  -C, --output-colorspace (RGB565, RGB888, BGR888, RGBx888, NV12, YCbCr420, NV16, YCbCr422)\n");
 	printf ("                         Specify output colorspace\n");
 	printf ("\nTransform options\n");
-	printf ("  Note that the VEU does not support combined rotation and scaling.\n");
+	printf ("  Note that the VIO does not support combined rotation and scaling.\n");
 	printf ("  -S, --output-size      Set the output image size (qcif, cif, qvga, vga, d1, 720p)\n");
 	printf ("                         [default is same as input size, ie. no rescaling]\n");
 	printf ("  -f, --filter	          Set the Filter Mode control register (see HW manual)\n");
 	printf ("\nMiscellaneous options\n");
-	printf ("  -l, --list             List VEU available and exit\n");
-	printf ("  -u, --veu veu          Specify the name of VEU to use (default: any VEU)\n");
+	printf ("  -l, --list             List VIO/VEU available and exit\n");
+	printf ("  -u, --vio vio          Specify the name of VIO/VEU to use (default: any VEU)\n");
 	printf ("  -h, --help             Display this help and exit\n");
 	printf ("  -v, --version          Output version information and exit\n");
 	printf ("\nFile extensions are interpreted as follows unless otherwise specified:\n");
@@ -165,9 +165,9 @@ static const char * show_colorspace (ren_vid_format_t c)
 static char * show_rotation (int r)
 {
 	switch (r) {
-	case SHVEU_NO_ROT:
+	case SHVIO_NO_ROT:
 		return "None";
-	case SHVEU_ROT_90:
+	case SHVIO_ROT_90:
 		return "90 degrees clockwise";
 	}
 
@@ -245,7 +245,7 @@ int main (int argc, char * argv[])
 	FILE * infile, * outfile = NULL;
 	size_t nread;
 	size_t input_size, output_size;
-	SHVEU *veu;
+	SHVIO *vio;
 	struct ren_vid_surface src;
 	struct ren_vid_surface dst;
 	int ret;
@@ -253,9 +253,9 @@ int main (int argc, char * argv[])
 
 	int show_version = 0;
 	int show_help = 0;
-	int show_list_veu = 0;
+	int show_list_vio = 0;
 	char * progname;
-	char * veudev = NULL;
+	char * viodev = NULL;
 	int error = 0;
 
 	int c;
@@ -271,7 +271,7 @@ int main (int argc, char * argv[])
 		{"output-colorspace", required_argument, 0, 'C'},
 		{"output-size", required_argument, 0, 'S'},
 		{"filter", required_argument, 0, 'f'},
-		{"veu", required_argument, 0, 'u'},
+		{"vio", required_argument, 0, 'u'},
 		{"list", no_argument, 0, 'l'},
 		{NULL,0,0,0}
 	};
@@ -330,10 +330,10 @@ int main (int argc, char * argv[])
 			rotation = strtoul(optarg, NULL, 0);
 			break;
 		case 'l':
-			show_list_veu = 1;
+			show_list_vio = 1;
 			break;
 		case 'u':
-			veudev = optarg;
+			viodev = optarg;
 			break;
 		default:
 			break;
@@ -348,20 +348,20 @@ int main (int argc, char * argv[])
 		usage (progname);
 	}
 
-	if (show_list_veu) {
-		char **veu;
+	if (show_list_vio) {
+		char **vio;
 		int i, n;
 
-		if (shveu_list_veu(&veu, &n) < 0) {
-			printf ("Can't get a list of VEU available...\n");
+		if (shvio_list_vio(&vio, &n) < 0) {
+			printf ("Can't get a list of VIO available...\n");
 		} else {
 			for(i = 0; i < n; i++)
-				printf("%s", veu[i]);
-			printf("Total: %d VEUs available.\n", n);
+				printf("%s", vio[i]);
+			printf("Total: %d VIOs available.\n", n);
 		}
 	}
 
-	if (show_version || show_help || show_list_veu) {
+	if (show_version || show_help || show_list_vio) {
 		goto exit_ok;
 	}
 
@@ -481,13 +481,13 @@ int main (int argc, char * argv[])
 		}
 	}
 
-	if (!veudev)
-		veu = shveu_open();
+	if (!viodev)
+		vio = shvio_open();
 	else
-		veu = shveu_open_named(veudev);
+		vio = shvio_open_named(viodev);
 
-	if (veu == 0) {
-		fprintf (stderr, "Error opening VEU\n");
+	if (vio == 0) {
+		fprintf (stderr, "Error opening VIO\n");
 		goto exit_err;
 	}
 
@@ -507,9 +507,9 @@ int main (int argc, char * argv[])
 		}
 
 		if (rotation) {
-			ret = shveu_rotate(veu, &src, &dst, rotation);
+			ret = shvio_rotate(vio, &src, &dst, rotation);
 		} else {
-			ret = shveu_resize(veu, &src, &dst);
+			ret = shvio_resize(vio, &src, &dst);
 		}
 
 		/* Write output */
@@ -521,7 +521,7 @@ int main (int argc, char * argv[])
 		frameno++;
 	}
 
-	shveu_close (veu);
+	shvio_close (vio);
 
 	uiomux_free (uiomux, UIOMUX_SH_VEU, src.py, input_size);
 	uiomux_free (uiomux, UIOMUX_SH_VEU, dst.py, output_size);

@@ -7,14 +7,14 @@
 .PP
 ..
 
-.TH "shveu-convert" 1 "Oct 2009" "SH VEU" "Linux-SH Multimedia"
+.TH "shvio-convert" 1 "Oct 2009" "SH VIO" "Linux-SH Multimedia"
 
 .SH NAME
-shveu-convert \- Convert raw image data using the SH-Mobile VEU
+shvio-convert \- Convert raw image data using the SH-Mobile VIO
 
 .SH SYNOPSIS
 .PP
-\fBshveu-convert\fR
+\fBshvio-convert\fR
 [\-c \fBcolorspace\fR | \-\-input\-colorspace \fBcolorspace\fR ]
 [\-C \fBcolorspace\fR | \-\-output-colorspace \fBcolorspace\fR ]
 [\-s \fBsize\fR | \-\-input-size \fBsize\fR ]
@@ -22,27 +22,27 @@ shveu-convert \- Convert raw image data using the SH-Mobile VEU
 [\-o \fBfilename\fR  | \-\-output \fBfilename\fR ]
 filename
 
-\fBshveu-convert\fR [\-c \fBcolorspace\fR | \-\-input\-colorspace \fBcolorspace\fR ]
+\fBshvio-convert\fR [\-c \fBcolorspace\fR | \-\-input\-colorspace \fBcolorspace\fR ]
 [\-C \fBcolorspace\fR | \-\-output-colorspace \fBcolorspace\fR ]
 [\-r  | \-\-rotate]
 [\-o \fBfilename\fR  | \-\-output \fBfilename\fR ]
 filename
 
-\fBshveu-convert\fR [\-h  | \-\-help ]  [\-v  | \-\-version ]  
+\fBshvio-convert\fR [\-h  | \-\-help ]  [\-v  | \-\-version ]  
 
 .SH DESCRIPTION
 .PP
-\fBshveu-convert\fR transforms an input file using the SH-Mobile VEU.
+\fBshvio-convert\fR transforms an input file using the SH-Mobile VIO.
 If no output filename is specified, data is output to stdout.
 Specify '-' to force output to be written to stdout.
 If no input filename is specified, data is read from stdin.
 Specify '-' to force input to be read from stdin.
 .PP
-Note that the VEU does not support combined rotation and scaling.
+Note that the VIO does not support combined rotation and scaling.
 
 .SH "Options"
 .PP
-\fBshveu-convert\fR accepts the following options:
+\fBshvio-convert\fR accepts the following options:
 
 .SS "Input options"
 .IP "\-c \fBcolorspace\fR, \-\-input\-colorspace \fBcolorspace\fR" 10
@@ -81,6 +81,6 @@ RGB565
 
 .SH AUTHORS
 
-shveu-convert was written by Conrad Parker
+shvio-convert was written by Conrad Parker
 
 Please report bugs to <linux-sh@vger.kernel.org>

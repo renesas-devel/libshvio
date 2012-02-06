@@ -1,1 +1,1 @@
-SUBDIRS = libshveu tools
+SUBDIRS = libshvio tools

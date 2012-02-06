@@ -3,10 +3,10 @@ exec_prefix=@exec_prefix@
 libdir=@libdir@
 includedir=@includedir@
 
-Name: shveu
-Description: A library for controlling SH-Mobile VEU
+Name: shvio
+Description: A library for controlling SH-Mobile VIO/VEU
 Requires:
 Version: @VERSION@
-Libs: -L${libdir} -lshveu
+Libs: -L${libdir} -lshvio
 Libs.private:
 Cflags: -I${includedir}

@@ -1,67 +1,67 @@
-libshveu
+libshvio
 ===========
 
-libshveu: A library for controlling the SH-Mobile VEU.
+libshvio: A library for controlling the SH-Mobile VIO/VEU.
 
 Copyright (C) 2009 Renesas Technology Corp.
 Copyright (C) 2010 Renesas Electronics Corporation
 
-The [SH-Mobile][0] processor series includes a hardware video engine unit (VEU)
+The [SH-Mobile][0] processor series includes a hardware video engine unit (VIO/VEU)
 that supports colorspace conversion, rotation and scaling.
 
 This source archive contains:
 
- * src/libshveu: the libshveu shared library
+ * src/libshvio: the libshvio shared library
  * src/tools: commandline tools
 
-libshveu API
+libshvio API
 ------------
 
-libshveu provides simple scale and rotate capability via the shveu_resize and
-shveu_rotate blocking functions.
-	veu = shveu_open()
+libshvio provides simple scale and rotate capability via the shvio_resize and
+shvio_rotate blocking functions.
+	vio = shvio_open()
 	do {
-		shveu_resize(veu, ...);
+		shvio_resize(vio, ...);
 	} while (processing);
-	shveu_close(veu);
+	shvio_close(vio);
 
 For more flexibility, such as operating on a selection of a larger frame the
-shveu_setup function can be used along with shveu_start and shveu_wait.
-	veu = shveu_open()
+shvio_setup function can be used along with shvio_start and shvio_wait.
+	vio = shvio_open()
 	do {
-		shveu_setup(veu, ...);
-		shveu_start(veu);
-		shveu_wait(veu);
+		shvio_setup(vio, ...);
+		shvio_start(vio);
+		shvio_wait(vio);
 	} while (processing);
-	shveu_close(veu);
+	shvio_close(vio);
 
 For low latency and reduced memory use, bundle mode is supported via the
-shveu_start_bundle function. Using this mode requires that the input and output
+shvio_start_bundle function. Using this mode requires that the input and output
 buffer addresses are updated before the start of the next bundle.
-	veu = shveu_open()
+	vio = shvio_open()
 	do {
-		shveu_setup(veu, ...);
+		shvio_setup(vio, ...);
 		do {
-			shveu_set_src(veu, ...);
-			shveu_set_dst(veu, ...);
-			shveu_start_bundle(veu, ...);
-			end = shveu_wait(veu);
+			shvio_set_src(vio, ...);
+			shvio_set_dst(vio, ...);
+			shvio_start_bundle(vio, ...);
+			end = shvio_wait(vio);
 		} while (!end);
 	} while (processing);
-	shveu_close(veu);
+	shvio_close(vio);
 
-Please see doc/libshveu/html/index.html for API details.
+Please see doc/libshvio/html/index.html for API details.
 
 
-shveu-convert
+shvio-convert
 -------------
 
-shveu-convert is a commandline program for converting raw image or video files.
-It uses the SH-Mobile VEU to perform simultaneous colorspace conversion and
+shvio-convert is a commandline program for converting raw image or video files.
+It uses the SH-Mobile VIO to perform simultaneous colorspace conversion and
 either rotation or scaling on each input frame.
 
-    Usage: shveu-convert [options] [input-filename [output-filename]]
-    Convert raw image data using the SH-Mobile VEU.
+    Usage: shvio-convert [options] [input-filename [output-filename]]
+    Convert raw image data using the SH-Mobile VIO.
 
     If no output filename is specified, data is output to stdout.
     Specify '-' to force output to be written to stdout.
@@ -81,7 +81,7 @@ either rotation or scaling on each input frame.
                              Specify output colorspace
 
     Transform options
-      Note that the VEU does not support combined rotation and scaling.
+      Note that the VIO does not support combined rotation and scaling.
       -S, --output-size      Set the output image size (qcif, cif, qvga, vga, d1)
                              [default is same as input size, ie. no rescaling]
       -r, --rotate           Rotate the image 90 degrees clockwise
@@ -95,15 +95,15 @@ either rotation or scaling on each input frame.
       .rgb    RGB565
 
 
-shveu-display
+shvio-display
 -------------
 
-shveu-display is a commandline program for displaying raw image or video files.
-It uses the SH-Mobile VEU to perform simultaneous colorspace conversion and
+shvio-display is a commandline program for displaying raw image or video files.
+It uses the SH-Mobile VIO to perform simultaneous colorspace conversion and
 scaling on each input frame. It allows the user to zoom in/out and pan the image.
 
-    Usage: shveu-display [options] [input-filename]
-    Processes raw image data using the SH-Mobile VEU and displays on screen.
+    Usage: shvio-display [options] [input-filename]
+    Processes raw image data using the SH-Mobile VIO and displays on screen.
 
     If no input filename is specified, a simple image will be created.
 
@@ -139,10 +139,10 @@ support for camera capture, JPEG processing, and DSP instructions.
 Kernel configuration
 --------------------
 
-libshveu uses the Linux kernel UIO support for the SH-Mobile VEU, which was
+libshvio uses the Linux kernel UIO support for the SH-Mobile VIO/VEU, which was
 added in 2.6.27.
 
-The following kernel boot option reserves physically contiguous memory for VEU
+The following kernel boot option reserves physically contiguous memory for VIO/VEU
 use:
 
     memchunk.veu0=4m

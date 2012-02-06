@@ -1,5 +1,5 @@
 /*
- * libshveu: A library for controlling SH-Mobile VEU
+ * libshvio: A library for controlling SH-Mobile VIO/VEU
  * Copyright (C) 2009 Renesas Technology Corp.
  * Copyright (C) 2010 Renesas Electronics Corporation
  *
@@ -23,7 +23,7 @@
  */
 
 /*
- * SuperH VEU color space conversion and stretching
+ * SuperH VIO color space conversion and stretching
  * Based on MPlayer Vidix driver by Magnus Damm
  * Modified by Takanari Hayama to support NV12->RGB565 conversion
  */
@@ -38,7 +38,7 @@
 #include <errno.h>
 
 #include <uiomux/uiomux.h>
-#include "shveu/shveu.h"
+#include "shvio/shvio.h"
 #include "shveu_regs.h"
 
 #include <endian.h>
@@ -61,14 +61,14 @@
 #define debug_info(s)
 #endif
 
-struct veu_format_info {
+struct vio_format_info {
 	ren_vid_format_t fmt;
 	uint32_t vtrcr_src;
 	uint32_t vtrcr_dst;
 	uint32_t vswpr;
 };
 
-static const struct veu_format_info veu_fmts[] = {
+static const struct vio_format_info vio_fmts[] = {
 	{ REN_NV12,   VTRCR_SRC_FMT_YCBCR420, VTRCR_DST_FMT_YCBCR420, 7 },
 	{ REN_NV16,   VTRCR_SRC_FMT_YCBCR422, VTRCR_DST_FMT_YCBCR422, 7 },
 	{ REN_RGB565, VTRCR_SRC_FMT_RGB565,   VTRCR_DST_FMT_RGB565,   6 },
@@ -83,7 +83,7 @@ struct uio_map {
 	void *iomem;
 };
 
-struct SHVEU {
+struct SHVIO {
 	UIOMux *uiomux;
 	uiomux_resource_t uiores;
 	struct uio_map uio_mmio;
@@ -96,14 +96,14 @@ struct SHVEU {
 };
 
 
-static const struct veu_format_info *fmt_info(ren_vid_format_t format)
+static const struct vio_format_info *fmt_info(ren_vid_format_t format)
 {
 	int i, nr_fmts;
 
-	nr_fmts = sizeof(veu_fmts) / sizeof(veu_fmts[0]);
+	nr_fmts = sizeof(vio_fmts) / sizeof(vio_fmts[0]);
 	for (i=0; i<nr_fmts; i++) {
-		if (veu_fmts[i].fmt == format)
-			return &veu_fmts[i];
+		if (vio_fmts[i].fmt == format)
+			return &vio_fmts[i];
 	}
 	return NULL;
 }
@@ -203,18 +203,18 @@ static void write_reg(void *base_addr, uint32_t value, int reg_nr)
 	*reg = value;
 }
 
-static int veu_is_veu2h(SHVEU *veu)
+static int vio_is_veu2h(SHVIO *vio)
 {
 	/* Is this a VEU2H on SH7723? */
-	return veu->uio_mmio.size == 0x27c;
+	return vio->uio_mmio.size == 0x27c;
 }
 
-static int veu_is_veu3f(SHVEU *veu)
+static int vio_is_veu3f(SHVIO *vio)
 {
-	return veu->uio_mmio.size == 0xcc;
+	return vio->uio_mmio.size == 0xcc;
 }
 
-static void set_scale(SHVEU *veu, void *base_addr, int vertical,
+static void set_scale(SHVIO *vio, void *base_addr, int vertical,
 		      int size_in, int size_out, int zoom)
 {
 	uint32_t fixpoint, mant, frac, value, vb;
@@ -225,7 +225,7 @@ static void set_scale(SHVEU *veu, void *base_addr, int vertical,
 	mant = fixpoint / 4096;
 	frac = fixpoint - (mant * 4096);
 
-	if (veu_is_veu2h(veu)) {
+	if (vio_is_veu2h(vio)) {
 		if (frac & 0x07) {
 			frac &= ~0x07;
 
@@ -254,7 +254,7 @@ static void set_scale(SHVEU *veu, void *base_addr, int vertical,
 	write_reg(base_addr, value, VRFCR);
 
 	/* Assumption that anything newer than VEU2H has VRPBR */
-	if (!veu_is_veu2h(veu)) {
+	if (!vio_is_veu2h(vio)) {
 		if (size_out >= size_in)
 			vb = 64;
 		else {
@@ -302,69 +302,69 @@ set_clip(void *base_addr, int vertical, int clip_out)
 
 static int format_supported(ren_vid_format_t fmt)
 {
-	const struct veu_format_info *info = fmt_info(fmt);
+	const struct vio_format_info *info = fmt_info(fmt);
 	if (info)
 		return 1;
 	return 0;
 }
 
-SHVEU *shveu_open_named(const char *name)
+SHVIO *shvio_open_named(const char *name)
 {
-	SHVEU *veu;
+	SHVIO *vio;
 	int ret;
 
-	veu = calloc(1, sizeof(*veu));
-	if (!veu)
+	vio = calloc(1, sizeof(*vio));
+	if (!vio)
 		goto err;
 
 	if (!name) {
-		veu->uiomux = uiomux_open();
-		veu->uiores = UIOMUX_SH_VEU;
+		vio->uiomux = uiomux_open();
+		vio->uiores = UIOMUX_SH_VEU;
 	} else {
 		const char *blocks[2] = { name, NULL };
-		veu->uiomux = uiomux_open_named(blocks);
-		veu->uiores = (1 << 0);
+		vio->uiomux = uiomux_open_named(blocks);
+		vio->uiores = (1 << 0);
 	}
-	if (!veu->uiomux)
+	if (!vio->uiomux)
 		goto err;
 
-	ret = uiomux_get_mmio (veu->uiomux, veu->uiores,
-		&veu->uio_mmio.address,
-		&veu->uio_mmio.size,
-		&veu->uio_mmio.iomem);
+	ret = uiomux_get_mmio (vio->uiomux, vio->uiores,
+		&vio->uio_mmio.address,
+		&vio->uio_mmio.size,
+		&vio->uio_mmio.iomem);
 	if (!ret)
 		goto err;
 
-	return veu;
+	return vio;
 
 err:
 	debug_info("ERR: error detected");
-	shveu_close(veu);
+	shvio_close(vio);
 	return 0;
 }
 
-SHVEU *shveu_open(void)
+SHVIO *shvio_open(void)
 {
-	return shveu_open_named("VEU");
+	return shvio_open_named("VEU");
 }
 
-void shveu_close(SHVEU *veu)
+void shvio_close(SHVIO *vio)
 {
-	if (veu) {
-		if (veu->uiomux)
-			uiomux_close(veu->uiomux);
-		free(veu);
+	if (vio) {
+		if (vio->uiomux)
+			uiomux_close(vio->uiomux);
+		free(vio);
 	}
 }
 
-#define SHVEU_UIO_VEU_MAX	(8)
-#define SHVEU_UIO_PREFIX	"VEU"
-#define SHVEU_UIO_PREFIX_LEN	(3)
+#define SHVIO_UIO_VIO_MAX	(8)
+#define SHVIO_UIO_PREFIX	"VEU"
+#define SHVIO_UIO_PREFIX_LEN	(3)
 
 int
-shveu_list_veu(char ***names, int *count)
+shvio_list_vio(char ***names, int *count)
 {
-	static char *cache[SHVEU_UIO_VEU_MAX];
+	static char *cache[SHVIO_UIO_VIO_MAX];
 	static int cache_count = -1;
 
 	char **result;
@@ -379,14 +379,14 @@ shveu_list_veu(char ***names, int *count)
 
 
 	/*
-	 * XXX: We can return up to (SHVEU_UIO_VEU_MAX) VEU count.
-	 * If there's more than (SHVEU_UIO_VEU_MAX) VEUs available
+	 * XXX: We can return up to (SHVIO_UIO_VIO_MAX) VIO count.
+	 * If there's more than (SHVIO_UIO_VIO_MAX) VIOs available
 	 * in the future. It has to be extended.
 	 */
 	cache_count = 0;
 	memset(cache, 0, sizeof(cache));
-	for (i = 0; i < n && cache_count < SHVEU_UIO_VEU_MAX; i++) {
-		if (!strncmp(SHVEU_UIO_PREFIX, result[i], SHVEU_UIO_PREFIX_LEN))
+	for (i = 0; i < n && cache_count < SHVIO_UIO_VIO_MAX; i++) {
+		if (!strncmp(SHVIO_UIO_PREFIX, result[i], SHVIO_UIO_PREFIX_LEN))
 			cache[cache_count++] = result[i];
 	}
 done:
@@ -400,24 +400,24 @@ err:
 }
 
 int
-shveu_setup(
-	SHVEU *veu,
+shvio_setup(
+	SHVIO *vio,
 	const struct ren_vid_surface *src_surface,
 	const struct ren_vid_surface *dst_surface,
-	shveu_rotation_t filter_control)
+	shvio_rotation_t filter_control)
 {
 	float scale_x, scale_y;
 	uint32_t temp;
 	uint32_t Y, C;
-	const struct veu_format_info *src_info;
-	const struct veu_format_info *dst_info;
+	const struct vio_format_info *src_info;
+	const struct vio_format_info *dst_info;
 	struct ren_vid_surface local_src;
 	struct ren_vid_surface local_dst;
 	struct ren_vid_surface *src = &local_src;
 	struct ren_vid_surface *dst = &local_dst;
 	void *base_addr;
 
-	if (!veu || !src_surface || !dst_surface) {
+	if (!vio || !src_surface || !dst_surface) {
 		debug_info("ERR: Invalid input - need src and dest");
 		return -1;
 	}
@@ -438,7 +438,7 @@ shveu_setup(
 	}
 
 	/* Scaling limits */
-	if (veu_is_veu2h(veu)) {
+	if (vio_is_veu2h(vio)) {
 		if ((scale_x > 8.0) || (scale_y > 8.0)) {
 			debug_info("ERR: Outside scaling limits!");
 			return -1;
@@ -455,29 +455,29 @@ shveu_setup(
 	}
 
 	/* source - use a buffer the hardware can access */
-	if (get_hw_surface(veu->uiomux, veu->uiores, src, src_surface) < 0) {
+	if (get_hw_surface(vio->uiomux, vio->uiores, src, src_surface) < 0) {
 		debug_info("ERR: src is not accessible by hardware");
 		return -1;
 	}
 	copy_surface(src, src_surface);
 
 	/* destination - use a buffer the hardware can access */
-	if (get_hw_surface(veu->uiomux, veu->uiores, dst, dst_surface) < 0) {
+	if (get_hw_surface(vio->uiomux, vio->uiores, dst, dst_surface) < 0) {
 		debug_info("ERR: dest is not accessible by hardware");
 		return -1;
 	}
 
-	uiomux_lock (veu->uiomux, veu->uiores);
+	uiomux_lock (vio->uiomux, vio->uiores);
 
-	base_addr = veu->uio_mmio.iomem;
+	base_addr = vio->uio_mmio.iomem;
 
 	/* Keep track of the requested surfaces */
-	veu->src_user = *src_surface;
-	veu->dst_user = *dst_surface;
+	vio->src_user = *src_surface;
+	vio->dst_user = *dst_surface;
 
 	/* Keep track of the actual surfaces used */
-	veu->src_hw = local_src;
-	veu->dst_hw = local_dst;
+	vio->src_hw = local_src;
+	vio->dst_hw = local_dst;
 
 	/* Software reset */
 	if (read_reg(base_addr, VESTR) & 0x1)
@@ -559,13 +559,13 @@ shveu_setup(
 		temp |= VTRCR_RY_SRC_RGB;
 	if (different_colorspace(src_surface->format, dst_surface->format))
 		temp |= VTRCR_TE_BIT_SET;
-	if (veu->bt709)
+	if (vio->bt709)
 		temp |= VTRCR_BT709;
-	if (veu->full_range)
+	if (vio->full_range)
 		temp |= VTRCR_FULL_COLOR_CONV;
 	write_reg(base_addr, temp, VTRCR);
 
-	if (veu_is_veu2h(veu)) {
+	if (vio_is_veu2h(vio)) {
 		/* color conversion matrix */
 		write_reg(base_addr, 0x0cc5, VMCR00);
 		write_reg(base_addr, 0x0950, VMCR01);
@@ -588,8 +588,8 @@ shveu_setup(
 	write_reg(base_addr, 0, VRFCR);
 	if (!(filter_control & 0x3)) {
 		/* Not a rotate operation */
-		set_scale(veu, base_addr, 0, src->w, dst->w, 0);
-		set_scale(veu, base_addr, 1, src->h, dst->h, 0);
+		set_scale(vio, base_addr, 0, src->w, dst->w, 0);
+		set_scale(vio, base_addr, 1, src->h, dst->h, 0);
 	}
 
 	/* Filter control - directly pass user arg to register */
@@ -598,17 +598,17 @@ shveu_setup(
 	return 0;
 
 fail:
-	uiomux_unlock(veu->uiomux, veu->uiores);
+	uiomux_unlock(vio->uiomux, vio->uiores);
 	return -1;
 }
 
 void
-shveu_set_src(
-	SHVEU *veu,
+shvio_set_src(
+	SHVIO *vio,
 	void *src_py,
 	void *src_pc)
 {
-	void *base_addr = veu->uio_mmio.iomem;
+	void *base_addr = vio->uio_mmio.iomem;
 	uint32_t Y, C;
 
 	Y = uiomux_all_virt_to_phys(src_py);
@@ -618,24 +618,24 @@ shveu_set_src(
 }
 
 void
-shveu_set_src_phys(
-	SHVEU *veu,
+shvio_set_src_phys(
+	SHVIO *vio,
 	uint32_t src_py,
 	uint32_t src_pc)
 {
-	void *base_addr = veu->uio_mmio.iomem;
+	void *base_addr = vio->uio_mmio.iomem;
 
 	write_reg(base_addr, src_py, VSAYR);
 	write_reg(base_addr, src_pc, VSACR);
 }
 
 void
-shveu_set_dst(
-	SHVEU *veu,
+shvio_set_dst(
+	SHVIO *vio,
 	void *dst_py,
 	void *dst_pc)
 {
-	void *base_addr = veu->uio_mmio.iomem;
+	void *base_addr = vio->uio_mmio.iomem;
 	uint32_t Y, C;
 
 	Y = uiomux_all_virt_to_phys(dst_py);
@@ -645,31 +645,31 @@ shveu_set_dst(
 }
 
 void
-shveu_set_dst_phys(
-	SHVEU *veu,
+shvio_set_dst_phys(
+	SHVIO *vio,
 	uint32_t dst_py,
 	uint32_t dst_pc)
 {
-	void *base_addr = veu->uio_mmio.iomem;
+	void *base_addr = vio->uio_mmio.iomem;
 
 	write_reg(base_addr, dst_py, VDAYR);
 	write_reg(base_addr, dst_pc, VDACR);
 }
 
 void
-shveu_set_color_conversion(
-	SHVEU *veu,
+shvio_set_color_conversion(
+	SHVIO *vio,
 	int bt709,
 	int full_range)
 {
-	veu->bt709 = bt709;
-	veu->full_range = full_range;
+	vio->bt709 = bt709;
+	vio->full_range = full_range;
 }
 
 void
-shveu_start(SHVEU *veu)
+shvio_start(SHVIO *vio)
 {
-	void *base_addr = veu->uio_mmio.iomem;
+	void *base_addr = vio->uio_mmio.iomem;
 
 	/* enable interrupt in VEU */
 	write_reg(base_addr, 1, VEIER);
@@ -679,11 +679,11 @@ shveu_start(SHVEU *veu)
 }
 
 void
-shveu_start_bundle(
-	SHVEU *veu,
+shvio_start_bundle(
+	SHVIO *vio,
 	int bundle_lines)
 {
-	void *base_addr = veu->uio_mmio.iomem;
+	void *base_addr = vio->uio_mmio.iomem;
 
 	write_reg(base_addr, bundle_lines, VBSSR);
 
@@ -695,37 +695,37 @@ shveu_start_bundle(
 }
 
 int
-shveu_wait(SHVEU *veu)
+shvio_wait(SHVIO *vio)
 {
-	void *base_addr = veu->uio_mmio.iomem;
+	void *base_addr = vio->uio_mmio.iomem;
 	uint32_t vevtr;
 	uint32_t vstar;
 	int complete = 0;
 
-	uiomux_sleep(veu->uiomux, veu->uiores);
+	uiomux_sleep(vio->uiomux, vio->uiores);
 
 	vevtr = read_reg(base_addr, VEVTR);
 	write_reg(base_addr, 0, VEVTR);   /* ack interrupts */
 
 	/* End of VEU operation? */
 	if (vevtr & 1) {
-		dbg(__func__, __LINE__, "src_hw", &veu->src_hw);
-		dbg(__func__, __LINE__, "dst_hw", &veu->dst_hw);
-		copy_surface(&veu->dst_user, &veu->dst_hw);
+		dbg(__func__, __LINE__, "src_hw", &vio->src_hw);
+		dbg(__func__, __LINE__, "dst_hw", &vio->dst_hw);
+		copy_surface(&vio->dst_user, &vio->dst_hw);
 
 		/* free locally allocated surfaces */
-		if (veu->src_hw.py != veu->src_user.py) {
-			size_t len = size_y(veu->src_hw.format, veu->src_hw.h * veu->src_hw.w);
-			len += size_c(veu->src_hw.format, veu->src_hw.h * veu->src_hw.w);
-			uiomux_free(veu->uiomux, veu->uiores, veu->src_hw.py, len);
+		if (vio->src_hw.py != vio->src_user.py) {
+			size_t len = size_y(vio->src_hw.format, vio->src_hw.h * vio->src_hw.w);
+			len += size_c(vio->src_hw.format, vio->src_hw.h * vio->src_hw.w);
+			uiomux_free(vio->uiomux, vio->uiores, vio->src_hw.py, len);
 		}
-		if (veu->dst_hw.py != veu->dst_user.py) {
-			size_t len = size_y(veu->dst_hw.format, veu->dst_hw.h * veu->dst_hw.w);
-			len += size_c(veu->dst_hw.format, veu->dst_hw.h * veu->dst_hw.w);
-			uiomux_free(veu->uiomux, veu->uiores, veu->dst_hw.py, len);
+		if (vio->dst_hw.py != vio->dst_user.py) {
+			size_t len = size_y(vio->dst_hw.format, vio->dst_hw.h * vio->dst_hw.w);
+			len += size_c(vio->dst_hw.format, vio->dst_hw.h * vio->dst_hw.w);
+			uiomux_free(vio->uiomux, vio->uiores, vio->dst_hw.py, len);
 		}
 
-		uiomux_unlock(veu->uiomux, veu->uiores);
+		uiomux_unlock(vio->uiomux, vio->uiores);
 		complete = 1;
 	}
 
@@ -733,37 +733,37 @@ shveu_wait(SHVEU *veu)
 }
 
 int
-shveu_resize(
-	SHVEU *veu,
+shvio_resize(
+	SHVIO *vio,
 	const struct ren_vid_surface *src_surface,
 	const struct ren_vid_surface *dst_surface)
 {
 	int ret;
 
-	ret = shveu_setup(veu, src_surface, dst_surface, SHVEU_NO_ROT);
+	ret = shvio_setup(vio, src_surface, dst_surface, SHVIO_NO_ROT);
 
 	if (ret == 0) {
-		shveu_start(veu);
-		shveu_wait(veu);
+		shvio_start(vio);
+		shvio_wait(vio);
 	}
 
 	return ret;
 }
 
 int
-shveu_rotate(
-	SHVEU *veu,
+shvio_rotate(
+	SHVIO *vio,
 	const struct ren_vid_surface *src_surface,
 	const struct ren_vid_surface *dst_surface,
-	shveu_rotation_t rotate)
+	shvio_rotation_t rotate)
 {
 	int ret;
 
-	ret = shveu_setup(veu, src_surface, dst_surface, rotate);
+	ret = shvio_setup(vio, src_surface, dst_surface, rotate);
 
 	if (ret == 0) {
-		shveu_start(veu);
-		shveu_wait(veu);
+		shvio_start(vio);
+		shvio_wait(vio);
 	}
 
 	return ret;
