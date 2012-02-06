@@ -38,8 +38,10 @@
 #include <errno.h>
 
 #include <uiomux/uiomux.h>
-#include "shvio/shvio.h"
-#include "shveu_regs.h"
+#include "veu_regs.h"
+
+/* #define DEBUG 2 */
+#include "common.h"
 
 #include <endian.h>
 
@@ -51,14 +53,6 @@
 #define __BIG_ENDIAN__
 #endif
 
-#endif
-
-/* #define DEBUG 2 */
-
-#ifdef DEBUG
-#define debug_info(s) fprintf(stderr, "%s: %s\n", __func__, s)
-#else
-#define debug_info(s)
 #endif
 
 struct vio_format_info {
@@ -77,25 +71,6 @@ static const struct vio_format_info vio_fmts[] = {
 	{ REN_RGB32,  VTRCR_SRC_FMT_RGBX888,  VTRCR_DST_FMT_RGBX888,  4 },
 };
 
-struct uio_map {
-	unsigned long address;
-	unsigned long size;
-	void *iomem;
-};
-
-struct SHVIO {
-	UIOMux *uiomux;
-	uiomux_resource_t uiores;
-	struct uio_map uio_mmio;
-	struct ren_vid_surface src_user;
-	struct ren_vid_surface src_hw;
-	struct ren_vid_surface dst_user;
-	struct ren_vid_surface dst_hw;
-	int bt709;
-	int full_range;
-};
-
-
 static const struct vio_format_info *fmt_info(ren_vid_format_t format)
 {
 	int i, nr_fmts;
@@ -106,76 +81,6 @@ static const struct vio_format_info *fmt_info(ren_vid_format_t format)
 			return &vio_fmts[i];
 	}
 	return NULL;
-}
-
-static void dbg(const char *str1, int l, const char *str2, const struct ren_vid_surface *s)
-{
-#ifdef DEBUG
-	fprintf(stderr, "%s:%d: %s: (%dx%d) pitch=%d py=%p, pc=%p, pa=%p\n", str1, l, str2, s->w, s->h, s->pitch, s->py, s->pc, s->pa);
-#endif
-}
-
-static void copy_plane(void *dst, void *src, int bpp, int h, int len, int dst_pitch, int src_pitch)
-{
-	int y;
-	if (src && dst != src) {
-		for (y=0; y<h; y++) {
-			memcpy(dst, src, len * bpp);
-			src += src_pitch * bpp;
-			dst += dst_pitch * bpp;
-		}
-	}
-}
-
-/* Copy active surface contents - assumes output is big enough */
-static void copy_surface(
-	struct ren_vid_surface *out,
-	const struct ren_vid_surface *in)
-{
-	const struct format_info *fmt = &fmts[in->format];
-
-	copy_plane(out->py, in->py, fmt->y_bpp, in->h, in->w, out->pitch, in->pitch);
-
-	copy_plane(out->pc, in->pc, fmt->c_bpp,
-		in->h/fmt->c_ss_vert,
-		in->w/fmt->c_ss_horz,
-		out->pitch/fmt->c_ss_horz,
-		in->pitch/fmt->c_ss_horz);
-
-	copy_plane(out->pa, in->pa, 1, in->h, in->w, out->pitch, in->pitch);
-}
-
-/* Check/create surface that can be accessed by the hardware */
-static int get_hw_surface(
-	UIOMux * uiomux,
-	uiomux_resource_t resource,
-	struct ren_vid_surface *out,
-	const struct ren_vid_surface *in)
-{
-	int alloc = 0;
-
-	if (in == NULL || out == NULL)
-		return 0;
-
-	*out = *in;
-	if (in->py) alloc |= !uiomux_all_virt_to_phys(in->py);
-	if (in->pc) alloc |= !uiomux_all_virt_to_phys(in->pc);
-
-	if (alloc) {
-		/* One of the supplied buffers is not usable by the hardware! */
-		size_t len = size_y(in->format, in->h * in->w);
-		if (in->pc) len += size_c(in->format, in->h * in->w);
-
-		out->py = uiomux_malloc(uiomux, resource, len, 32);
-		if (!out->py)
-			return -1;
-
-		if (in->pc) {
-			out->pc = out->py + size_y(in->format, in->h * in->w);
-		}
-	}
-
-	return 0;
 }
 
 /* Helper functions for reading registers. */
@@ -308,102 +213,11 @@ static int format_supported(ren_vid_format_t fmt)
 	return 0;
 }
 
-SHVIO *shvio_open_named(const char *name)
-{
-	SHVIO *vio;
-	int ret;
-
-	vio = calloc(1, sizeof(*vio));
-	if (!vio)
-		goto err;
-
-	if (!name) {
-		vio->uiomux = uiomux_open();
-		vio->uiores = UIOMUX_SH_VEU;
-	} else {
-		const char *blocks[2] = { name, NULL };
-		vio->uiomux = uiomux_open_named(blocks);
-		vio->uiores = (1 << 0);
-	}
-	if (!vio->uiomux)
-		goto err;
-
-	ret = uiomux_get_mmio (vio->uiomux, vio->uiores,
-		&vio->uio_mmio.address,
-		&vio->uio_mmio.size,
-		&vio->uio_mmio.iomem);
-	if (!ret)
-		goto err;
-
-	return vio;
-
-err:
-	debug_info("ERR: error detected");
-	shvio_close(vio);
-	return 0;
-}
-
-SHVIO *shvio_open(void)
-{
-	return shvio_open_named("VEU");
-}
-
-void shvio_close(SHVIO *vio)
-{
-	if (vio) {
-		if (vio->uiomux)
-			uiomux_close(vio->uiomux);
-		free(vio);
-	}
-}
-
-#define SHVIO_UIO_VIO_MAX	(8)
-#define SHVIO_UIO_PREFIX	"VEU"
-#define SHVIO_UIO_PREFIX_LEN	(3)
-
-int
-shvio_list_vio(char ***names, int *count)
-{
-	static char *cache[SHVIO_UIO_VIO_MAX];
-	static int cache_count = -1;
-
-	char **result;
-	int i, n;;
-
-	if (cache_count != -1)
-		goto done;
-
-	if (uiomux_list_device(&result, &n) < 0) {
-		goto err;
-	}
-
-
-	/*
-	 * XXX: We can return up to (SHVIO_UIO_VIO_MAX) VIO count.
-	 * If there's more than (SHVIO_UIO_VIO_MAX) VIOs available
-	 * in the future. It has to be extended.
-	 */
-	cache_count = 0;
-	memset(cache, 0, sizeof(cache));
-	for (i = 0; i < n && cache_count < SHVIO_UIO_VIO_MAX; i++) {
-		if (!strncmp(SHVIO_UIO_PREFIX, result[i], SHVIO_UIO_PREFIX_LEN))
-			cache[cache_count++] = result[i];
-	}
-done:
-	*names = cache;
-	*count = cache_count;
-	return 0;
-
-err:
-	debug_info("ERR: error detected");
-	return -1;
-}
-
-int
-shvio_setup(
+static int
+veu_setup(
 	SHVIO *vio,
-	const struct ren_vid_surface *src_surface,
-	const struct ren_vid_surface *dst_surface,
+	const struct ren_vid_surface *src,
+	const struct ren_vid_surface *dst,
 	shvio_rotation_t filter_control)
 {
 	float scale_x, scale_y;
@@ -411,28 +225,16 @@ shvio_setup(
 	uint32_t Y, C;
 	const struct vio_format_info *src_info;
 	const struct vio_format_info *dst_info;
-	struct ren_vid_surface local_src;
-	struct ren_vid_surface local_dst;
-	struct ren_vid_surface *src = &local_src;
-	struct ren_vid_surface *dst = &local_dst;
 	void *base_addr;
 
-	if (!vio || !src_surface || !dst_surface) {
-		debug_info("ERR: Invalid input - need src and dest");
-		return -1;
-	}
-
-	src_info = fmt_info(src_surface->format);
-	dst_info = fmt_info(dst_surface->format);
-
-	dbg(__func__, __LINE__, "src_user", src_surface);
-	dbg(__func__, __LINE__, "dst_user", dst_surface);
+	src_info = fmt_info(src->format);
+	dst_info = fmt_info(dst->format);
 
 	/* scale factors */
-	scale_x = (float)dst_surface->w / src_surface->w;
-	scale_y = (float)dst_surface->h / src_surface->h;
+	scale_x = (float)dst->w / src->w;
+	scale_y = (float)dst->h / src->h;
 
-	if (!format_supported(src_surface->format) || !format_supported(dst_surface->format)) {
+	if (!format_supported(src->format) || !format_supported(dst->format)) {
 		debug_info("ERR: Invalid surface format!");
 		return -1;
 	}
@@ -454,30 +256,9 @@ shvio_setup(
 		return -1;
 	}
 
-	/* source - use a buffer the hardware can access */
-	if (get_hw_surface(vio->uiomux, vio->uiores, src, src_surface) < 0) {
-		debug_info("ERR: src is not accessible by hardware");
-		return -1;
-	}
-	copy_surface(src, src_surface);
-
-	/* destination - use a buffer the hardware can access */
-	if (get_hw_surface(vio->uiomux, vio->uiores, dst, dst_surface) < 0) {
-		debug_info("ERR: dest is not accessible by hardware");
-		return -1;
-	}
-
 	uiomux_lock (vio->uiomux, vio->uiores);
 
 	base_addr = vio->uio_mmio.iomem;
-
-	/* Keep track of the requested surfaces */
-	vio->src_user = *src_surface;
-	vio->dst_user = *dst_surface;
-
-	/* Keep track of the actual surfaces used */
-	vio->src_hw = local_src;
-	vio->dst_hw = local_dst;
 
 	/* Software reset */
 	if (read_reg(base_addr, VESTR) & 0x1)
@@ -555,9 +336,9 @@ shvio_setup(
 	/* transform control */
 	temp = src_info->vtrcr_src;
 	temp |= dst_info->vtrcr_dst;
-	if (is_rgb(src_surface->format))
+	if (is_rgb(src->format))
 		temp |= VTRCR_RY_SRC_RGB;
-	if (different_colorspace(src_surface->format, dst_surface->format))
+	if (different_colorspace(src->format, dst->format))
 		temp |= VTRCR_TE_BIT_SET;
 	if (vio->bt709)
 		temp |= VTRCR_BT709;
@@ -602,8 +383,8 @@ fail:
 	return -1;
 }
 
-void
-shvio_set_src(
+static void
+veu_set_src(
 	SHVIO *vio,
 	void *src_py,
 	void *src_pc)
@@ -617,8 +398,8 @@ shvio_set_src(
 	write_reg(base_addr, C, VSACR);
 }
 
-void
-shvio_set_src_phys(
+static void
+veu_set_src_phys(
 	SHVIO *vio,
 	uint32_t src_py,
 	uint32_t src_pc)
@@ -629,8 +410,8 @@ shvio_set_src_phys(
 	write_reg(base_addr, src_pc, VSACR);
 }
 
-void
-shvio_set_dst(
+static void
+veu_set_dst(
 	SHVIO *vio,
 	void *dst_py,
 	void *dst_pc)
@@ -644,8 +425,8 @@ shvio_set_dst(
 	write_reg(base_addr, C, VDACR);
 }
 
-void
-shvio_set_dst_phys(
+static void
+veu_set_dst_phys(
 	SHVIO *vio,
 	uint32_t dst_py,
 	uint32_t dst_pc)
@@ -656,18 +437,8 @@ shvio_set_dst_phys(
 	write_reg(base_addr, dst_pc, VDACR);
 }
 
-void
-shvio_set_color_conversion(
-	SHVIO *vio,
-	int bt709,
-	int full_range)
-{
-	vio->bt709 = bt709;
-	vio->full_range = full_range;
-}
-
-void
-shvio_start(SHVIO *vio)
+static void
+veu_start(SHVIO *vio)
 {
 	void *base_addr = vio->uio_mmio.iomem;
 
@@ -678,8 +449,8 @@ shvio_start(SHVIO *vio)
 	write_reg(base_addr, 1, VESTR);
 }
 
-void
-shvio_start_bundle(
+static void
+veu_start_bundle(
 	SHVIO *vio,
 	int bundle_lines)
 {
@@ -694,77 +465,30 @@ shvio_start_bundle(
 	write_reg(base_addr, 0x101, VESTR);
 }
 
-int
-shvio_wait(SHVIO *vio)
+static int
+veu_wait(SHVIO *vio)
 {
 	void *base_addr = vio->uio_mmio.iomem;
 	uint32_t vevtr;
 	uint32_t vstar;
 	int complete = 0;
 
-	uiomux_sleep(vio->uiomux, vio->uiores);
-
 	vevtr = read_reg(base_addr, VEVTR);
 	write_reg(base_addr, 0, VEVTR);   /* ack interrupts */
 
 	/* End of VEU operation? */
-	if (vevtr & 1) {
-		dbg(__func__, __LINE__, "src_hw", &vio->src_hw);
-		dbg(__func__, __LINE__, "dst_hw", &vio->dst_hw);
-		copy_surface(&vio->dst_user, &vio->dst_hw);
-
-		/* free locally allocated surfaces */
-		if (vio->src_hw.py != vio->src_user.py) {
-			size_t len = size_y(vio->src_hw.format, vio->src_hw.h * vio->src_hw.w);
-			len += size_c(vio->src_hw.format, vio->src_hw.h * vio->src_hw.w);
-			uiomux_free(vio->uiomux, vio->uiores, vio->src_hw.py, len);
-		}
-		if (vio->dst_hw.py != vio->dst_user.py) {
-			size_t len = size_y(vio->dst_hw.format, vio->dst_hw.h * vio->dst_hw.w);
-			len += size_c(vio->dst_hw.format, vio->dst_hw.h * vio->dst_hw.w);
-			uiomux_free(vio->uiomux, vio->uiores, vio->dst_hw.py, len);
-		}
-
-		uiomux_unlock(vio->uiomux, vio->uiores);
-		complete = 1;
-	}
+	complete = vevtr & 1;
 
 	return complete;
 }
 
-int
-shvio_resize(
-	SHVIO *vio,
-	const struct ren_vid_surface *src_surface,
-	const struct ren_vid_surface *dst_surface)
-{
-	int ret;
-
-	ret = shvio_setup(vio, src_surface, dst_surface, SHVIO_NO_ROT);
-
-	if (ret == 0) {
-		shvio_start(vio);
-		shvio_wait(vio);
-	}
-
-	return ret;
-}
-
-int
-shvio_rotate(
-	SHVIO *vio,
-	const struct ren_vid_surface *src_surface,
-	const struct ren_vid_surface *dst_surface,
-	shvio_rotation_t rotate)
-{
-	int ret;
-
-	ret = shvio_setup(vio, src_surface, dst_surface, rotate);
-
-	if (ret == 0) {
-		shvio_start(vio);
-		shvio_wait(vio);
-	}
-
-	return ret;
-}
+const struct shvio_operations veu_ops = {
+	.setup = veu_setup,
+	.set_src = veu_set_src,
+	.set_src_phys = veu_set_src_phys,
+	.set_dst = veu_set_dst,
+	.set_dst_phys = veu_set_dst_phys,
+	.start = veu_start,
+	.start_bundle = veu_start_bundle,
+	.wait = veu_wait,
+};

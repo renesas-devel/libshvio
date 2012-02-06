@@ -240,6 +240,7 @@ static int guess_size (char * filename, ren_vid_format_t colorspace, int * w, in
 int main (int argc, char * argv[])
 {
 	UIOMux * uiomux;
+	uiomux_resource_t uiores;
 
 	char * infilename = NULL, * outfilename = NULL;
 	FILE * infile, * outfile = NULL;
@@ -440,17 +441,24 @@ int main (int argc, char * argv[])
 	input_size = imgsize (src.format, src.w, src.h);
 	output_size = imgsize (dst.format, dst.w, dst.h);
 
-	uiomux = uiomux_open ();
+	if (viodev) {
+		const char *blocks[2] = { viodev, NULL };
+		uiomux = uiomux_open_named(blocks);
+		uiores = 1 << 0;
+	} else {
+		uiomux = uiomux_open ();
+		uiores = UIOMUX_SH_VEU;
+	}
 
 	/* Set up memory buffers */
-	src.py = uiomux_malloc (uiomux, UIOMUX_SH_VEU, input_size, 32);
+	src.py = uiomux_malloc (uiomux, uiores, input_size, 32);
 	if (src.format == REN_RGB565) {
 		src.pc = 0;
 	} else {
 		src.pc = src.py + (src.w * src.h);
 	}
 
-	dst.py = uiomux_malloc (uiomux, UIOMUX_SH_VEU, output_size, 32);
+	dst.py = uiomux_malloc (uiomux, uiores, output_size, 32);
 	if (dst.format == REN_RGB565) {
 		dst.pc = 0;
 	} else {
@@ -523,8 +531,8 @@ int main (int argc, char * argv[])
 
 	shvio_close (vio);
 
-	uiomux_free (uiomux, UIOMUX_SH_VEU, src.py, input_size);
-	uiomux_free (uiomux, UIOMUX_SH_VEU, dst.py, output_size);
+	uiomux_free (uiomux, uiores, src.py, input_size);
+	uiomux_free (uiomux, uiores, dst.py, output_size);
 	uiomux_close (uiomux);
 
 	if (infile != stdin) fclose (infile);
