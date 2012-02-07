@@ -96,6 +96,32 @@ dnl Check for libuiomux
 dnl
 PKG_CHECK_MODULES(UIOMUX, uiomux >= 1.6.0)
 
+dnl
+dnl Check for libshmeram
+dnl
+AC_ARG_ENABLE([meram],
+	[AC_HELP_STRING(
+		[--enable-meram],
+		[use meram as buffer cache in the shvio-convert command])],
+		[with_meram=$enableval],
+		[with_meram=no])
+AM_CONDITIONAL(USE_MERAM, [test "x$with_meram" != "xno"])
+
+if test "x$with_meram" = "xyes"; then
+ AC_DEFINE(USE_MERAM_RA, 1, Use MERAM as read-ahead cache)
+ AC_DEFINE(USE_MERAM_WB, 1, Use MERAM as write-back cache)
+fi
+if test "x$with_meram" = "xread"; then
+ AC_DEFINE(USE_MERAM_RA, 1, Use MERAM as read-ahead cache)
+fi
+if test "x$with_meram" = "xwrite"; then
+ AC_DEFINE(USE_MERAM_WB, 1, Use MERAM as write-back cache)
+fi
+
+if test "x$with_meram" != "xno"; then
+ PKG_CHECK_MODULES(SHMERAM, meram >= 0.9.1)
+fi
+
 # check for getopt in a separate library
 HAVE_GETOPT=no
 AC_CHECK_LIB(getopt, getopt, HAVE_GETOPT="yes")

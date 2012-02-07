@@ -139,6 +139,7 @@ static void copy_plane(void *dst, void *src, int bpp, int h, int len, int dst_bp
 {
 	int y;
 	if (src && dst != src) {
+		printf("COPT A PLANE!!\n");
 		for (y=0; y<h; y++) {
 			memcpy(dst, src, len * bpp);
 			src += src_bpitch;

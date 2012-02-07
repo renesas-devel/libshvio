@@ -18,6 +18,9 @@
 #include <unistd.h>
 
 #include <uiomux/uiomux.h>
+#if defined(USE_MERAM_RA) || defined(USE_MERAM_WB)
+#include <meram/meram.h>
+#endif
 
 #include "shvio/shvio.h"
 
@@ -249,6 +252,7 @@ int main (int argc, char * argv[])
 	SHVIO *vio;
 	struct ren_vid_surface src;
 	struct ren_vid_surface dst;
+	void *inbuf, *outbuf;
 	int ret;
 	int frameno=0;
 
@@ -277,6 +281,24 @@ int main (int argc, char * argv[])
 		{NULL,0,0,0}
 	};
 #endif
+
+#if defined(USE_MERAM_RA) || defined(USE_MERAM_WB)
+#define ALIGN16(_x)	(((_x) + 15) / 16 * 16)
+#define ADJUST_PITCH(_p, _w)			\
+	{					\
+		(_p) = ((_w) - 1) | 1023;	\
+		(_p) = (_p) | ((_p) >> 1);	\
+		(_p) = (_p) | ((_p) >> 2);	\
+		(_p) += 1;			\
+	}
+
+	unsigned long val;
+	MERAM *meram = meram_open();
+	MERAM_REG *regs = meram_lock_reg(meram);
+	size_t sz;
+	unsigned long mblock;
+	ICB *icbr, *icbw;
+#endif /* defined(USE_MERAM_RA) || defined(USE_MERAM_WB) */
 
 	src.w = -1;
 	src.h = -1;
@@ -452,19 +474,133 @@ int main (int argc, char * argv[])
 	}
 
 	/* Set up memory buffers */
-	src.py = uiomux_malloc (uiomux, uiores, input_size, 32);
+	src.py = inbuf = uiomux_malloc (uiomux, uiores, input_size, 32);
 	if (src.format == REN_RGB565) {
 		src.pc = 0;
 	} else {
 		src.pc = src.py + (src.w * src.h);
 	}
 
-	dst.py = uiomux_malloc (uiomux, uiores, output_size, 32);
+	dst.py = outbuf = uiomux_malloc (uiomux, uiores, output_size, 32);
 	if (dst.format == REN_RGB565) {
 		dst.pc = 0;
 	} else {
 		dst.pc = dst.py + (dst.w * dst.h);
 	}
+
+#if defined(USE_MERAM_RA) || defined(USE_MERAM_WB)
+	meram_read_reg(meram, regs, MEVCR1, &val);
+	val |= 1 << 29;		/* use 0xc0000000-0xdfffffff */
+	meram_write_reg(meram, regs, MEVCR1, val);
+	meram_unlock_reg(meram, regs);
+#endif /* defined(USE_MERAM_RA) || defined(USE_MERAM_WB) */
+
+#if defined(USE_MERAM_RA)
+	/* calcurate byte-pitch */
+	src.bpitchy = size_y(src.format, src.pitch, 0);
+
+	/* set up read-ahead cache for input */
+	icbr = meram_lock_icb(meram, 0);
+	val = (3 << 24) |		/* KRBNM: ((3+1) << 1) = 8 lines */
+		((16 - 1) << 16);	/* BNM: 16 = KRBNM * 2 lines */
+	ADJUST_PITCH(sz, src.bpitchy);
+	sz *= 16;			/* 16 lines */
+	if (src.format == REN_NV12) {
+		val |= 2 << 12;	/* CPL: YCbCr420 */
+		sz = sz * 3 / 2;
+	} else if (src.format == REN_NV16) {
+		val |= 3 << 12;	/* CPL: YCbCr422 */
+		sz = sz * 2;
+	}
+	meram_write_icb(meram, icbr, MExxMCNF, val);
+
+	sz = (sz + 1023) / 1024;
+	mblock = meram_alloc_icb_memory(meram, icbr,
+					    (sz == 0) ? 1 : sz);
+	val = (1 << 28) |		/* BSZ: 2^1 line/block */
+		(mblock << 16) |	/* MSAR */
+		(3 << 9) |		/* WD: (constant) */
+		(1 << 8) |		/* WS: (constant) */
+		(1 << 3) |		/* CM: address mode 1 */
+		1;			/* MD: read buffer mode */
+	meram_write_icb(meram, icbr, MExxCTRL, val);
+
+	val = ((src.h - 1) << 16) |	/* YSZM1 */
+		(src.bpitchy - 1);	/* XSZM1 */
+	meram_write_icb(meram, icbr, MExxBSIZE, val);
+	val = ALIGN16(src.bpitchy);	/* SBSIZE: 16 bytes aligned */
+	meram_write_icb(meram, icbr, MExxSBSIZE, val);
+
+	ADJUST_PITCH(src.bpitchy, src.bpitchy);
+	src.bpitchc = src.bpitcha = src.bpitchy;
+
+	val = uiomux_all_virt_to_phys(src.py);
+	meram_write_icb(meram, icbr, MExxSSARA, val);
+
+	src.py = (void *)meram_get_icb_address(meram, icbr, 0);
+	uiomux_register(src.py, (unsigned long)src.py, 8 << 20);
+	if (is_ycbcr(src.format)) {
+		val = uiomux_all_virt_to_phys(src.pc);
+		meram_write_icb(meram, icbr, MExxSSARB, val);
+		src.pc = (void *)meram_get_icb_address(meram, icbr, 1);
+		uiomux_register(src.pc, (unsigned long)src.pc, 8 << 20);
+	} else {
+		meram_write_icb(meram, icbr, MExxSSARB, 0);
+	}
+#endif /* defined(USE_MERAM_RA) */
+
+#if defined(USE_MERAM_WB)
+	/* calcurate byte-pitch */
+	dst.bpitchy = size_y(dst.format, dst.pitch, 0);
+
+	/* set up write-back cache for input */
+	icbw = meram_lock_icb(meram, 1);
+	val = (3 << 28) |		/* KWBNM: ((3+1) << 1) = 8 lines */
+		((16 - 1) << 16);	/* BNM: 16 = KWBNM * 2 lines */
+	ADJUST_PITCH(sz, dst.bpitchy);
+	sz *= 16;			/* 16 lines */
+	if (dst.format == REN_NV12) {
+		val |= 2 << 12;	/* CPL: YCbCr420 */
+		sz = sz * 3 / 2;
+	} else if (dst.format == REN_NV16) {
+		val |= 3 << 12;	/* CPL: YCbCr422 */
+		sz = sz * 2;
+	}
+	meram_write_icb(meram, icbw, MExxMCNF, val);
+	sz = (sz + 1023) / 1024;
+	mblock = meram_alloc_icb_memory(meram, icbw,
+					(sz == 0) ? 1 : sz);
+	val = (1 << 28) |		/* BSZ: 2^1 line/block */
+		(mblock << 16) |	/* MSAR */
+		(3 << 9) |		/* WD: (constant) */
+		(1 << 8) |		/* WS: (constant) */
+		(1 << 3) |		/* CM: address mode 1 */
+		2;			/* MD: write buffer mode */
+	meram_write_icb(meram, icbw, MExxCTRL, val);
+
+	val = ((dst.h - 1) << 16) |	/* YSZM1 */
+		(dst.bpitchy - 1);	/* XSZM1 */
+	meram_write_icb(meram, icbw, MExxBSIZE, val);
+	val = ALIGN16(dst.bpitchy);	/* SBSIZE: 16 bytes aligned */
+	meram_write_icb(meram, icbw, MExxSBSIZE, val);
+
+	ADJUST_PITCH(dst.bpitchy, dst.bpitchy);
+	dst.bpitchc = dst.bpitcha = dst.bpitchy;
+
+	val = uiomux_all_virt_to_phys(dst.py);
+	meram_write_icb(meram, icbw, MExxSSARA, val);
+
+	dst.py = (void *)meram_get_icb_address(meram, icbw, 0);
+	uiomux_register(dst.py, (unsigned long)dst.py, 8 << 20);
+	if (is_ycbcr(dst.format)) {
+		val = uiomux_all_virt_to_phys(dst.pc);
+		meram_write_icb(meram, icbw, MExxSSARB, val);
+		dst.pc = (void *)meram_get_icb_address(meram, icbw, 1);
+		uiomux_register(dst.pc, (unsigned long)dst.pc, 8 << 20);
+	} else {
+		meram_write_icb(meram, icbw, MExxSSARB, 0);
+	}
+#endif /* defined(USE_MERAM_WB) */
 
 	if (strcmp (infilename, "-") == 0) {
 		infile = stdin;
@@ -506,7 +642,7 @@ int main (int argc, char * argv[])
 #endif
 
 		/* Read input */
-		if ((nread = fread (src.py, 1, input_size, infile)) != input_size) {
+		if ((nread = fread (inbuf, 1, input_size, infile)) != input_size) {
 			if (nread == 0 && feof (infile)) {
 				break;
 			} else {
@@ -521,8 +657,19 @@ int main (int argc, char * argv[])
 			ret = shvio_resize(vio, &src, &dst);
 		}
 
+#if defined(USE_MERAM_WB)
+		meram_read_icb(meram, icbw, MExxCTRL, &val);
+		val |= 1 << 5;	/* WF: flush data */
+		meram_write_icb(meram, icbw, MExxCTRL, val);
+#endif
+#if defined(USE_MERAM_RA)
+		meram_read_icb(meram, icbr, MExxCTRL, &val);
+		val |= 1 << 4;	/* RF: flush data */
+		meram_write_icb(meram, icbr, MExxCTRL, val);
+#endif
+
 		/* Write output */
-		if (outfile && fwrite (dst.py, 1, output_size, outfile) != output_size) {
+		if (outfile && fwrite (outbuf, 1, output_size, outfile) != output_size) {
 				fprintf (stderr, "%s: error writing input file %s\n",
 					 progname, outfilename);
 		}
@@ -531,6 +678,26 @@ int main (int argc, char * argv[])
 	}
 
 	shvio_close (vio);
+
+#if defined(USE_MERAM_RA)
+	/* finialize the read-ahead cache */
+	uiomux_unregister(src.py);
+	if (is_ycbcr(src.format))
+		uiomux_unregister(src.pc);
+	meram_free_icb_memory(meram, icbr);
+	meram_unlock_icb(meram, icbr);
+#endif
+#if defined(USE_MERAM_WB)
+	/* finialize the write-back cache */
+	uiomux_unregister(dst.py);
+	if (is_ycbcr(dst.format))
+		uiomux_unregister(dst.pc);
+	meram_free_icb_memory(meram, icbw);
+	meram_unlock_icb(meram, icbw);
+#endif
+#if defined(USE_MERAM_RA) || defined(USE_MERAM_WB)
+	meram_close(meram);
+#endif
 
 	uiomux_free (uiomux, uiores, src.py, input_size);
 	uiomux_free (uiomux, uiores, dst.py, output_size);

@@ -18,6 +18,11 @@ shvio_convert_SOURCES = shvio-convert.c
 shvio_convert_CFLAGS = $(SHVIO_CFLAGS) $(UIOMUX_CFLAGS)
 shvio_convert_LDADD = $(SHVIO_LIBS) $(UIOMUX_LIBS)
 
+if USE_MERAM
+shvio_convert_CFLAGS += $(SHMERAM_CFLAGS)
+shvio_convert_LDADD += $(SHMERAM_LIBS)
+endif
+
 shvio_display_SOURCES = shvio-display.c display.c
 shvio_display_CFLAGS = $(SHVIO_CFLAGS) $(UIOMUX_CFLAGS)
 shvio_display_LDADD = $(SHVIO_LIBS) $(UIOMUX_LIBS) $(ncurses_lib) -lrt
