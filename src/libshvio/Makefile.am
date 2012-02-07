@@ -11,10 +11,10 @@ AM_CFLAGS =
 # Libraries to build
 lib_LTLIBRARIES = libshvio.la
 
-noinst_HEADERS = veu_regs.h common.h
+noinst_HEADERS = veu_regs.h vio6_regs.h common.h
 
 libshvio_la_SOURCES = \
-	common.c veu.c
+	common.c veu.c vio6.c
 
 libshvio_la_CFLAGS = $(UIOMUX_CFLAGS)
 libshvio_la_LDFLAGS = -version-info @SHARED_VERSION_INFO@ @SHLIB_VERSION_ARG@

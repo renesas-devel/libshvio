@@ -35,6 +35,7 @@
 #include "common.h"
 
 struct shvio_operations veu_ops;
+struct shvio_operations vio6_ops;
 
 SHVIO *shvio_open_named(const char *name)
 {
@@ -48,10 +49,17 @@ SHVIO *shvio_open_named(const char *name)
 	if (!name) {
 		vio->uiomux = uiomux_open();
 		vio->uiores = UIOMUX_SH_VEU;
+		vio->ops = veu_ops;
 	} else {
 		const char *blocks[2] = { name, NULL };
 		vio->uiomux = uiomux_open_named(blocks);
 		vio->uiores = (1 << 0);
+		if (strncmp(name, "VEU", 3) == 0)
+			vio->ops = veu_ops;
+		else if (strncmp(name, "VIO", 3) == 0)
+			vio->ops = vio6_ops;
+		else
+			goto err;
 	}
 	if (!vio->uiomux)
 		goto err;
@@ -62,8 +70,6 @@ SHVIO *shvio_open_named(const char *name)
 		&vio->uio_mmio.iomem);
 	if (!ret)
 		goto err;
-
-	vio->ops = veu_ops;
 
 	return vio;
 
