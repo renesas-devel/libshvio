@@ -281,7 +281,7 @@ veu_setup(
 	write_reg(base_addr, Y, VSAYR);
 	write_reg(base_addr, C, VSACR);
 	write_reg(base_addr, (src->h << 16) | src->w, VESSR);
-	write_reg(base_addr, size_y(src->format, src->pitch), VESWR);
+	write_reg(base_addr, size_y(src->format, src->pitch, src->bpitchy), VESWR);
 
 	/* destination */
 	Y = uiomux_all_virt_to_phys(dst->py);
@@ -290,40 +290,40 @@ veu_setup(
 	if (filter_control & 0xFF) {
 		if ((filter_control & 0xFF) == 0x10) {
 			/* Horizontal Mirror (A) */
-			Y += size_y(dst->format, src->w);
-			C += size_y(dst->format, src->w);
+			Y += size_y(dst->format, src->w, 0);
+			C += size_y(dst->format, src->w, 0);
 		} else if ((filter_control & 0xFF) == 0x20) {
 			/* Vertical Mirror (B) */
-			Y += size_y(dst->format, (src->h-1) * dst->pitch);
-			C += size_c(dst->format, (src->h-2) * dst->pitch);
+			Y += size_y(dst->format, (src->h-1) * dst->pitch, dst->bpitchy);
+			C += size_c(dst->format, (src->h-2) * dst->pitch, dst->bpitchc);
 		} else if ((filter_control & 0xFF) == 0x30) {
 			/* Rotate 180 (C) */
-			Y += size_y(dst->format, src->w);
-			C += size_y(dst->format, src->w);
-			Y += size_y(dst->format, src->h * dst->pitch);
-			C += size_c(dst->format, src->h * dst->pitch);
+			Y += size_y(dst->format, src->w, 0);
+			C += size_y(dst->format, src->w, 0);
+			Y += size_y(dst->format, src->h * dst->pitch, dst->bpitchy);
+			C += size_c(dst->format, src->h * dst->pitch, dst->bpitchc);
 		} else if ((filter_control & 0xFF) == 1) {
 			/* Rotate 90 (D) */
-			Y += size_y(dst->format, src->h-16);
-			C += size_y(dst->format, src->h-16);
+			Y += size_y(dst->format, src->h-16, dst->bpitchy);
+			C += size_y(dst->format, src->h-16, dst->bpitchy);
 		} else if ((filter_control & 0xFF) == 2) {
 			/* Rotate 270 (E) */
-			Y += size_y(dst->format, (src->w-16) * dst->pitch);
-			C += size_c(dst->format, (src->w-16) * dst->pitch);
+			Y += size_y(dst->format, (src->w-16) * dst->pitch, dst->bpitchy);
+			C += size_c(dst->format, (src->w-16) * dst->pitch, dst->bpitchc);
 		} else if ((filter_control & 0xFF) == 0x11) {
 			/* Rotate 90 & Mirror Horizontal (F) */
 			/* Nothing to do */
 		} else if ((filter_control & 0xFF) == 0x21) {
 			/* Rotate 90 & Mirror Vertical (G) */
-			Y += size_y(dst->format, src->h-16);
-			C += size_y(dst->format, src->h-16);
-			Y += size_y(dst->format, (src->w-16) * dst->pitch);
-			C += size_c(dst->format, (src->w-16) * dst->pitch);
+			Y += size_y(dst->format, src->h-16, 0);
+			C += size_y(dst->format, src->h-16, 0);
+			Y += size_y(dst->format, (src->w-16) * dst->pitch, dst->bpitchy);
+			C += size_c(dst->format, (src->w-16) * dst->pitch, dst->bpitchc);
 		}
 	}
 	write_reg(base_addr, Y, VDAYR);
 	write_reg(base_addr, C, VDACR);
-	write_reg(base_addr, size_y(dst->format, dst->pitch), VEDWR);
+	write_reg(base_addr, size_y(dst->format, dst->pitch, dst->bpitchy), VEDWR);
 
 	/* byte/word swapping */
 	temp = 0;

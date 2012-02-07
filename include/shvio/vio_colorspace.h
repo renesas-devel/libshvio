@@ -65,6 +65,9 @@ struct ren_vid_surface {
 	void *py;   /**< Address of Y or RGB plane */
 	void *pc;   /**< Address of CbCr plane (ignored for RGB) */
 	void *pa;   /**< Address of Alpha plane (ignored) */
+	int bpitchy;  /**< Byte-pitch of Y plane (preferred than 'pitch', or ignored if 0) */
+	int bpitchc;  /**< Byte-pitch of CbCr plane (preferred than 'pitch', or ignored if 0) */
+	int bpitcha;  /**< Byte-pitch of Alpha plane (preferred than 'pitch', or ignored if 0) */
 };
 
 struct format_info {
@@ -110,22 +113,22 @@ static inline int different_colorspace(ren_vid_format_t fmt1, ren_vid_format_t f
 	return 0;
 }
 
-static inline size_t size_y(ren_vid_format_t format, int nr_pixels)
+static inline size_t size_y(ren_vid_format_t format, int nr_pixels, int bytes)
 {
 	const struct format_info *fmt = &fmts[format];
-	return (fmt->y_bpp * nr_pixels);
+	return (bytes != 0) ? bytes : (fmt->y_bpp * nr_pixels);
 }
 
-static inline size_t size_c(ren_vid_format_t format, int nr_pixels)
+static inline size_t size_c(ren_vid_format_t format, int nr_pixels, int bytes)
 {
 	const struct format_info *fmt = &fmts[format];
-	return (fmt->c_bpp_n * nr_pixels) / fmt->c_bpp_d;
+	return (bytes != 0) ? bytes : (fmt->c_bpp_n * nr_pixels) / fmt->c_bpp_d;
 }
 
-static inline size_t size_a(ren_vid_format_t format, int nr_pixels)
+static inline size_t size_a(ren_vid_format_t format, int nr_pixels, int bytes)
 {
 	/* Assume 1 byte per alpha pixel */
-	return nr_pixels;
+	return (bytes != 0) ? bytes : nr_pixels;
 }
 
 static inline size_t offset_y(ren_vid_format_t format, int w, int h, int pitch)

@@ -185,7 +185,7 @@ static off_t filesize (char * filename)
 
 static off_t imgsize (int colorspace, int w, int h)
 {
-	return (off_t)(size_y(colorspace, w*h) + size_c(colorspace, w*h));
+	return (off_t)(size_y(colorspace, w*h, 0) + size_c(colorspace, w*h, 0));
 }
 
 static int guess_colorspace (char * filename, int * c)

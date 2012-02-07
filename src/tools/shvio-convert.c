@@ -191,7 +191,7 @@ static off_t filesize (char * filename)
 
 static off_t imgsize (ren_vid_format_t colorspace, int w, int h)
 {
-	return (off_t)(size_y(colorspace, w*h) + size_c(colorspace, w*h));
+	return (off_t)(size_y(colorspace, w*h, 0) + size_c(colorspace, w*h, 0));
 }
 
 static int guess_colorspace (char * filename, ren_vid_format_t * c)
@@ -284,7 +284,8 @@ int main (int argc, char * argv[])
 	dst.h = -1;
 	src.format = REN_UNKNOWN;
 	dst.format = REN_UNKNOWN;
-
+	src.bpitchy = src.bpitchc = src.bpitcha = 0;
+	dst.bpitchy = dst.bpitchc = dst.bpitcha = 0;
 
 	progname = argv[0];
 

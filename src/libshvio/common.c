@@ -129,14 +129,14 @@ err:
 	return -1;
 }
 
-static void copy_plane(void *dst, void *src, int bpp, int h, int len, int dst_pitch, int src_pitch)
+static void copy_plane(void *dst, void *src, int bpp, int h, int len, int dst_bpitch, int src_bpitch)
 {
 	int y;
 	if (src && dst != src) {
 		for (y=0; y<h; y++) {
 			memcpy(dst, src, len * bpp);
-			src += src_pitch * bpp;
-			dst += dst_pitch * bpp;
+			src += src_bpitch;
+			dst += dst_bpitch;
 		}
 	}
 }
@@ -147,16 +147,25 @@ static void copy_surface(
 	const struct ren_vid_surface *in)
 {
 	const struct format_info *fmt = &fmts[in->format];
+	int src_bpitch, dst_bpitch;
 
-	copy_plane(out->py, in->py, fmt->y_bpp, in->h, in->w, out->pitch, in->pitch);
+	src_bpitch = (in->bpitchy != 0) ? in->bpitchy : in->pitch * fmt->y_bpp;
+	dst_bpitch = (out->bpitchy != 0) ? out->bpitchy : out->pitch * fmt->y_bpp;
+	copy_plane(out->py, in->py, fmt->y_bpp, in->h, in->w, dst_bpitch, src_bpitch);
 
+	src_bpitch = (in->bpitchc != 0) ? in->bpitchc :
+		in->pitch / fmt->c_ss_horz * fmt->c_bpp;
+	dst_bpitch = (out->bpitchc != 0) ? out->bpitchc :
+		out->pitch / fmt->c_ss_horz * fmt->c_bpp;
 	copy_plane(out->pc, in->pc, fmt->c_bpp,
 		in->h/fmt->c_ss_vert,
 		in->w/fmt->c_ss_horz,
-		out->pitch/fmt->c_ss_horz,
-		in->pitch/fmt->c_ss_horz);
+		src_bpitch,
+		dst_bpitch);
 
-	copy_plane(out->pa, in->pa, 1, in->h, in->w, out->pitch, in->pitch);
+	src_bpitch = (in->bpitcha != 0) ? in->bpitcha : in->pitch;
+	dst_bpitch = (out->bpitcha != 0) ? out->bpitcha : out->pitch;
+	copy_plane(out->pa, in->pa, 1, in->h, in->w, dst_bpitch, src_bpitch);
 }
 
 /* Check/create surface that can be accessed by the hardware */
@@ -177,15 +186,15 @@ static int get_hw_surface(
 
 	if (alloc) {
 		/* One of the supplied buffers is not usable by the hardware! */
-		size_t len = size_y(in->format, in->h * in->w);
-		if (in->pc) len += size_c(in->format, in->h * in->w);
+		size_t len = size_y(in->format, in->h * in->w, 0);
+		if (in->pc) len += size_c(in->format, in->h * in->w, 0);
 
 		out->py = uiomux_malloc(uiomux, resource, len, 32);
 		if (!out->py)
 			return -1;
 
 		if (in->pc) {
-			out->pc = out->py + size_y(in->format, in->h * in->w);
+			out->pc = out->py + size_y(in->format, in->h * in->w, 0);
 		}
 	}
 
@@ -195,7 +204,7 @@ static int get_hw_surface(
 static void dbg(const char *str1, int l, const char *str2, const struct ren_vid_surface *s)
 {
 #ifdef DEBUG
-	fprintf(stderr, "%s:%d: %s: (%dx%d) pitch=%d py=%p, pc=%p, pa=%p\n", str1, l, str2, s->w, s->h, s->pitch, s->py, s->pc, s->pa);
+	fprintf(stderr, "%s:%d: %s: (%dx%d) pitch=%d py=%p, pc=%p, pa=%p, bpitchy=%d, bpitchc=%d, bpitcha=%d\n", str1, l, str2, s->w, s->h, s->pitch, s->py, s->pc, s->pa, s->bpitchy, s->bpitchc, s->bpitcha);
 #endif
 }
 
@@ -247,14 +256,14 @@ shvio_setup(
 
 fail_setup:
 	if (vio->dst_hw.py != dst_surface->py) {
-		size_t len = size_y(vio->dst_hw.format, vio->dst_hw.h * vio->dst_hw.w);
-		len += size_c(vio->dst_hw.format, vio->dst_hw.h * vio->dst_hw.w);
+		size_t len = size_y(vio->dst_hw.format, vio->dst_hw.h * vio->dst_hw.w, 0);
+		len += size_c(vio->dst_hw.format, vio->dst_hw.h * vio->dst_hw.w, 0);
 		uiomux_free(vio->uiomux, vio->uiores, vio->dst_hw.py, len);
 	}
 fail_get_hw_surface_dst:
 	if (vio->src_hw.py != src_surface->py) {
-		size_t len = size_y(vio->src_hw.format, vio->src_hw.h * vio->src_hw.w);
-		len += size_c(vio->src_hw.format, vio->src_hw.h * vio->src_hw.w);
+		size_t len = size_y(vio->src_hw.format, vio->src_hw.h * vio->src_hw.w, 0);
+		len += size_c(vio->src_hw.format, vio->src_hw.h * vio->src_hw.w, 0);
 		uiomux_free(vio->uiomux, vio->uiores, vio->src_hw.py, len);
 	}
 
@@ -337,13 +346,13 @@ shvio_wait(SHVIO *vio)
 
 		/* free locally allocated surfaces */
 		if (vio->src_hw.py != vio->src_user.py) {
-			size_t len = size_y(vio->src_hw.format, vio->src_hw.h * vio->src_hw.w);
-			len += size_c(vio->src_hw.format, vio->src_hw.h * vio->src_hw.w);
+			size_t len = size_y(vio->src_hw.format, vio->src_hw.h * vio->src_hw.w, 0);
+			len += size_c(vio->src_hw.format, vio->src_hw.h * vio->src_hw.w, 0);
 			uiomux_free(vio->uiomux, vio->uiores, vio->src_hw.py, len);
 		}
 		if (vio->dst_hw.py != vio->dst_user.py) {
-			size_t len = size_y(vio->dst_hw.format, vio->dst_hw.h * vio->dst_hw.w);
-			len += size_c(vio->dst_hw.format, vio->dst_hw.h * vio->dst_hw.w);
+			size_t len = size_y(vio->dst_hw.format, vio->dst_hw.h * vio->dst_hw.w, 0);
+			len += size_c(vio->dst_hw.format, vio->dst_hw.h * vio->dst_hw.w, 0);
 			uiomux_free(vio->uiomux, vio->uiores, vio->dst_hw.py, len);
 		}
 
