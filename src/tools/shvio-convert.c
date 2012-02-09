@@ -39,13 +39,13 @@ usage (const char * progname)
 	printf ("If no input filename is specified, data is read from stdin.\n");
 	printf ("Specify '-' to force input to be read from stdin.\n");
 	printf ("\nInput options\n");
-	printf ("  -c, --input-colorspace (RGB565, RGB888, BGR888, RGBx888, NV12, YV12, NV16, YV16)\n");
+	printf ("  -c, --input-colorspace (RGB565, RGB888, BGR888, RGBx888, NV12, YV12, NV16, YV16, UYVY)\n");
 	printf ("                         Specify input colorspace\n");
 	printf ("  -s, --input-size       Set the input image size (qcif, cif, qvga, vga, d1, 720p)\n");
 	printf ("\nOutput options\n");
 	printf ("  -o filename, --output filename\n");
 	printf ("                         Specify output filename (default: stdout)\n");
-	printf ("  -C, --output-colorspace (RGB565, RGB888, BGR888, RGBx888, NV12, YV12, NV16, YV16)\n");
+	printf ("  -C, --output-colorspace (RGB565, RGB888, BGR888, RGBx888, NV12, YV12, NV16, YV16, UYVY)\n");
 	printf ("                         Specify output colorspace\n");
 	printf ("\nTransform options\n");
 	printf ("  Note that the VIO does not support combined rotation and scaling.\n");
@@ -131,7 +131,7 @@ static const struct extensions_t exts[] = {
 	{ "yuv",      REN_NV12 },
 	{ "YV16",     REN_YV16 },
 	{ "NV16",     REN_NV16 },
-	{ "422",      REN_NV16 },
+	{ "UYVY",     REN_UYVY },
 };
 
 static int set_colorspace (char * arg, ren_vid_format_t * c)
