@@ -301,18 +301,22 @@ static void scale(
 	src_surface.format = src_fmt;
 	src_surface.py = py;
 	src_surface.pc = pc;
+	src_surface.pc2 = 0;
 	src_surface.pa = 0;
 	src_surface.w = w;
 	src_surface.h = h;
 	src_surface.pitch = w;
+	src_surface.bpitchy = src_surface.bpitchc = src_surface.bpitcha = 0;
 
 	dst_surface.format = REN_RGB565;
 	dst_surface.py = lcd_buf;
 	dst_surface.pc = 0;
+	dst_surface.pc2 = 0;
 	dst_surface.pa = 0;
 	dst_surface.w = lcd_w;
 	dst_surface.h = lcd_h;
 	dst_surface.pitch = lcd_w;
+	dst_surface.bpitchy = dst_surface.bpitchc = dst_surface.bpitcha = 0;
 
 	src_surface2 = src_surface;
 	dst_surface2 = dst_surface;
