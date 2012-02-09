@@ -52,6 +52,8 @@ struct vio_format_info {
 static const struct vio_format_info vio_fmts[] = {
 	{ REN_NV12,	FMT_YCBCR420SP,	0xf },
 	{ REN_NV16,	FMT_YCBCR422SP,	0xf },
+	{ REN_YV12,	FMT_YCBCR420P,	0xf },
+	{ REN_YV16,	FMT_YCBCR422P,	0xf },
 	{ REN_RGB565,	FMT_RGB565,	0xe },
 	{ REN_RGB24,	FMT_RGB888,	0xf },
 	{ REN_BGR24,	FMT_BGR888,	0xf },
@@ -89,6 +91,7 @@ static const char *regname[0x2a34] = {
 	[0x00000368] = "RPF0_SRCM_ASTRIDE",
 	[0x0000036c] = "RPF0_SRCM_ADDR_Y",
 	[0x00000370] = "RPF0_SRCM_ADDR_C0",
+	[0x00000374] = "RPF0_SRCM_ADDR_C1",
 	[0x00000380] = "RPF0_CHPRI_CTRL",
 	[0x00001000] = "WPF0_SRCRPFL",
 	[0x00001004] = "WPF0_HSZCLIP",
@@ -100,6 +103,7 @@ static const char *regname[0x2a34] = {
 	[0x00001050] = "WPF0_DSTM_STRIDE_C",
 	[0x00001054] = "WPF0_DSTM_ADDR_Y",
 	[0x00001058] = "WPF0_DSTM_ADDR_C0",
+	[0x0000105c] = "WPF0_DSTM_ADDR_C1",
 	[0x00001060] = "WPF0_CHPRI_CTRL",
 	[0x00002000] = "DPR_CTRL0",
 	[0x00002004] = "DPR_CTRL1",
@@ -232,6 +236,24 @@ vio6_set_src(
 }
 
 static void
+vio6_set_src2(
+	SHVIO *vio,
+	void *src_py,
+	void *src_pcb,
+	void *src_pcr)
+{
+	void *base_addr = vio->uio_mmio.iomem;
+	uint32_t Y, Cb, Cr;
+
+	Y = uiomux_all_virt_to_phys(src_py);
+	Cb = uiomux_all_virt_to_phys(src_pcb);
+	Cr = uiomux_all_virt_to_phys(src_pcr);
+	write_reg(base_addr, Y, RPF_SRCM_ADDR_Y(0));
+	write_reg(base_addr, Cb, RPF_SRCM_ADDR_C0(0));
+	write_reg(base_addr, Cr, RPF_SRCM_ADDR_C1(0));
+}
+
+static void
 vio6_set_src_phys(
 	SHVIO *vio,
 	uint32_t src_py,
@@ -256,6 +278,24 @@ vio6_set_dst(
 	C = uiomux_all_virt_to_phys(dst_pc);
 	write_reg(base_addr, Y, WPF_DSTM_ADDR_Y(0));
 	write_reg(base_addr, C, WPF_DSTM_ADDR_C0(0));
+}
+
+static void
+vio6_set_dst2(
+	SHVIO *vio,
+	void *dst_py,
+	void *dst_pcb,
+	void *dst_pcr)
+{
+	void *base_addr = vio->uio_mmio.iomem;
+	uint32_t Y, Cb, Cr;
+
+	Y = uiomux_all_virt_to_phys(dst_py);
+	Cb = uiomux_all_virt_to_phys(dst_pcb);
+	Cr = uiomux_all_virt_to_phys(dst_pcr);
+	write_reg(base_addr, Y, WPF_DSTM_ADDR_Y(0));
+	write_reg(base_addr, Cb, WPF_DSTM_ADDR_C0(0));
+	write_reg(base_addr, Cr, WPF_DSTM_ADDR_C1(0));
 }
 
 static void
@@ -308,14 +348,20 @@ vio6_setup(
 	}
 
 	/* WPF: destination setting */
-	vio6_set_dst(vio, dst->py, dst->pc);
+	if (is_ycbcr_planar(dst->format))
+		vio6_set_dst2(vio, dst->py, dst->pc, dst->pc2);
+	else
+		vio6_set_dst(vio, dst->py, dst->pc);
 	write_reg(base_addr, SRC_RPF0_MAIN, WPF_SRCRPF(0));
 	write_reg(base_addr, 0, WPF_HSZCLIP(0));
 	write_reg(base_addr, 0, WPF_VSZCLIP(0));
 	write_reg(base_addr, RND_CBRM_ROUND|RND_ABRM_ROUND, WPF_RNDCTRL(0));
 	val = size_y(dst->format, dst->pitch, dst->bpitchy);
 	write_reg(base_addr, val, WPF_DSTM_STRIDE_Y(0));
-	val = size_y(dst->format, dst->pitch, dst->bpitchc);
+	if (is_ycbcr_planar(dst->format))
+		val = size_c(dst->format, dst->pitch, dst->bpitchc);
+	else
+		val = size_y(dst->format, dst->pitch, dst->bpitchc);
 	write_reg(base_addr, val, WPF_DSTM_STRIDE_C(0));
 	write_reg(base_addr, PRIO_ICB, WPF_CHPRI_CTRL(0));
 
@@ -341,7 +387,10 @@ vio6_setup(
 #endif
 
 	/* RPF: source setting */
-	vio6_set_src(vio, src->py, src->pc);
+	if (is_ycbcr_planar(src->format))
+		vio6_set_src2(vio, src->py, src->pc, src->pc2);
+	else
+		vio6_set_src(vio, src->py, src->pc);
 	write_reg(base_addr, 0, RPF_LOC(0));
 	if (src->format == REN_ARGB32)
 		write_reg(base_addr, 0, RPF_ALPH_SEL(0));
@@ -354,7 +403,10 @@ vio6_setup(
 	write_reg(base_addr, (src->w << 16) | src->h, RPF_SRC_ESIZE(0));
 	val = size_y(src->format, src->pitch, src->bpitchy);
 	val = val << 16;
-	val |= size_y(src->format, src->pitch, src->bpitchc);
+	if (is_ycbcr_planar(src->format))
+		val |= size_c(src->format, src->pitch, src->bpitchc);
+	else
+		val |= size_y(src->format, src->pitch, src->bpitchc);
 	write_reg(base_addr, val, RPF_SRCM_PSTRIDE(0));
 	val = size_a(src->format, src->pitch, src->bpitcha);
 	write_reg(base_addr, val, RPF_SRCM_ASTRIDE(0));
