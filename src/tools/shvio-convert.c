@@ -39,13 +39,13 @@ usage (const char * progname)
 	printf ("If no input filename is specified, data is read from stdin.\n");
 	printf ("Specify '-' to force input to be read from stdin.\n");
 	printf ("\nInput options\n");
-	printf ("  -c, --input-colorspace (RGB565, RGB888, BGR888, RGBx888, NV12, YCbCr420, NV16, YCbCr422)\n");
+	printf ("  -c, --input-colorspace (RGB565, RGB888, BGR888, RGBx888, NV12, YV12, NV16, YV16)\n");
 	printf ("                         Specify input colorspace\n");
 	printf ("  -s, --input-size       Set the input image size (qcif, cif, qvga, vga, d1, 720p)\n");
 	printf ("\nOutput options\n");
 	printf ("  -o filename, --output filename\n");
 	printf ("                         Specify output filename (default: stdout)\n");
-	printf ("  -C, --output-colorspace (RGB565, RGB888, BGR888, RGBx888, NV12, YCbCr420, NV16, YCbCr422)\n");
+	printf ("  -C, --output-colorspace (RGB565, RGB888, BGR888, RGBx888, NV12, YV12, NV16, YV16)\n");
 	printf ("                         Specify output colorspace\n");
 	printf ("\nTransform options\n");
 	printf ("  Note that the VIO does not support combined rotation and scaling.\n");
@@ -125,13 +125,13 @@ static const struct extensions_t exts[] = {
 	{ "BGR888",   REN_BGR24 },
 	{ "RGBx888",  REN_RGB32 },
 	{ "x888",     REN_RGB32 },
-	{ "YCbCr420", REN_NV12 },
+	{ "YV12",     REN_YV12 },
+	{ "NV12",     REN_NV12 },
 	{ "420",      REN_NV12 },
 	{ "yuv",      REN_NV12 },
-	{ "NV12",     REN_NV12 },
-	{ "YCbCr422", REN_NV16 },
-	{ "422",      REN_NV16 },
+	{ "YV16",     REN_YV16 },
 	{ "NV16",     REN_NV16 },
+	{ "422",      REN_NV16 },
 };
 
 static int set_colorspace (char * arg, ren_vid_format_t * c)
@@ -477,15 +477,27 @@ int main (int argc, char * argv[])
 	src.py = inbuf = uiomux_malloc (uiomux, uiores, input_size, 32);
 	if (src.format == REN_RGB565) {
 		src.pc = 0;
+	} else if (src.format == REN_YV12) {
+		src.pc2 = src.py + (src.w * src.h);	/* Cr(V) */
+		src.pc = src.pc2 + (src.w * src.h) / 4;	/* Cb(U) */
+	} else if (src.format == REN_YV16) {
+		src.pc2 = src.py + (src.w * src.h);	/* Cr(V) */
+		src.pc = src.pc2 + (src.w * src.h) / 2;	/* Cb(U) */
 	} else {
-		src.pc = src.py + (src.w * src.h);
+		src.pc = src.py + (src.w * src.h);	/* CbCr(UV) */
 	}
 
 	dst.py = outbuf = uiomux_malloc (uiomux, uiores, output_size, 32);
 	if (dst.format == REN_RGB565) {
 		dst.pc = 0;
+	} else if (dst.format == REN_YV12) {
+		dst.pc2 = dst.py + (dst.w * dst.h);	/* Cr(V) */
+		dst.pc = dst.pc2 + (dst.w * dst.h) / 4;	/* Cb(U) */
+	} else if (dst.format == REN_YV16) {
+		dst.pc2 = dst.py + (dst.w * dst.h);	/* Cr(V) */
+		dst.pc = dst.pc2 + (dst.w * dst.h) / 2;	/* Cb(U) */
 	} else {
-		dst.pc = dst.py + (dst.w * dst.h);
+		dst.pc = dst.py + (dst.w * dst.h);	/* CbCr(UV) */
 	}
 
 #if defined(USE_MERAM_RA) || defined(USE_MERAM_WB)
