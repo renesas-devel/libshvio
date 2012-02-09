@@ -40,6 +40,8 @@ typedef enum {
 	REN_UNKNOWN,
 	REN_NV12,    /**< YCbCr420: Y plane, packed CbCr plane, optional alpha plane */
 	REN_NV16,    /**< YCbCr422: Y plane, packed CbCr plane, optional alpha plane */
+	REN_YV12,    /**< YCbCr420p: Y plane, Cr plane, then Cb plane, optional alpha plane */
+	REN_YV16,    /**< YCbCr422p: Y plane, Cr plane, then Cb plane, optional alpha plane */
 	REN_RGB565,  /**< Packed RGB565 */
 	REN_RGB24,   /**< Packed RGB888 */
 	REN_BGR24,   /**< Packed BGR888 */
@@ -63,7 +65,8 @@ struct ren_vid_surface {
 	int h;      /**< Height of active surface in pixels */
 	int pitch;  /**< Width of surface in pixels */
 	void *py;   /**< Address of Y or RGB plane */
-	void *pc;   /**< Address of CbCr plane (ignored for RGB) */
+	void *pc;   /**< Address of CbCr/Cb plane (ignored for RGB) */
+	void *pc2;  /**< Address of Cr plane (ignored for RGB/NVxx) */
 	void *pa;   /**< Address of Alpha plane (ignored) */
 	int bpitchy;  /**< Byte-pitch of Y plane (preferred than 'pitch', or ignored if 0) */
 	int bpitchc;  /**< Byte-pitch of CbCr plane (preferred than 'pitch', or ignored if 0) */
@@ -84,6 +87,8 @@ static const struct format_info fmts[] = {
 	{ REN_UNKNOWN, 0, 0, 0, 1, 1, 1 },
 	{ REN_NV12,    1, 2, 1, 2, 2, 2 },
 	{ REN_NV16,    1, 2, 1, 1, 2, 1 },
+	{ REN_YV12,    1, 2, 1, 2, 2, 2 },
+	{ REN_YV16,    1, 2, 1, 1, 2, 1 },
 	{ REN_RGB565,  2, 0, 0, 1, 1, 1 },
 	{ REN_RGB24,   3, 0, 0, 1, 1, 1 },
 	{ REN_BGR24,   3, 0, 0, 1, 1, 1 },
@@ -93,7 +98,14 @@ static const struct format_info fmts[] = {
 
 static inline int is_ycbcr(ren_vid_format_t fmt)
 {
-	if (fmt >= REN_NV12 && fmt <= REN_NV16)
+	if (fmt >= REN_NV12 && fmt <= REN_YV16)
+		return 1;
+	return 0;
+}
+
+static inline int is_ycbcr_planar(ren_vid_format_t fmt)
+{
+	if (fmt >= REN_YV12 && fmt <= REN_YV16)
 		return 1;
 	return 0;
 }
