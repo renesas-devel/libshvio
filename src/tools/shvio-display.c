@@ -58,6 +58,7 @@ usage (const char * progname)
 	printf ("  =                      Reset zoom and panning\n");
 	printf ("  q                      Quit\n");
 	printf ("\nMiscellaneous options\n");
+	printf ("  -u, --vio vio          Specify the name of VIO/VEU to use (default: any VEU)\n");
 	printf ("  -h, --help             Display this help and exit\n");
 	printf ("  -v, --version          Output version information and exit\n");
 	printf ("\nFile extensions are interpreted as follows unless otherwise specified:\n");
@@ -402,6 +403,7 @@ static void scale(
 int main (int argc, char * argv[])
 {
 	UIOMux *uiomux = NULL;
+	uiomux_resource_t uiores;
 	SHVIO *vio = NULL;
 	DISPLAY *display = NULL;
 	char * infilename = NULL;
@@ -423,10 +425,11 @@ int main (int argc, char * argv[])
 	int show_version = 0;
 	int show_help = 0;
 	char * progname;
+	char * viodev = NULL;
 	int error = 0;
 
 	int c;
-	char * optstring = "hvc:s:W:H:";
+	char * optstring = "hvc:s:W:H:u:";
 
 #ifdef HAVE_GETOPT_LONG
 	static struct option long_options[] = {
@@ -436,6 +439,7 @@ int main (int argc, char * argv[])
 		{"input-size", required_argument, 0, 's'},
 		{"width", required_argument, 0, 'W'},
 		{"height", required_argument, 0, 'H'},
+		{"vio", required_argument, 0, 'u'},
 		{NULL,0,0,0}
 	};
 #endif
@@ -472,6 +476,9 @@ int main (int argc, char * argv[])
 			break;
 		case 'H': /* input size */
 			input_h = strtoul(optarg, NULL, 10);
+			break;
+		case 'u':
+			viodev = optarg;
 			break;
 		default:
 			break;
@@ -540,12 +547,26 @@ int main (int argc, char * argv[])
 		}
 	}
 
-	if ((uiomux = uiomux_open()) == 0) {
+	if (viodev) {
+		const char *blocks[2] = { viodev, NULL };
+		uiomux = uiomux_open_named(blocks);
+		uiores = 1 << 0;
+	} else {
+		uiomux = uiomux_open ();
+		uiores = UIOMUX_SH_VEU;
+	}
+
+	if (uiomux == 0) {
 		fprintf (stderr, "Error opening UIOMux\n");
 		goto exit_err;
 	}
 
-	if ((vio = shvio_open()) == 0) {
+	if (!viodev)
+		vio = shvio_open();
+	else
+		vio = shvio_open_named(viodev);
+
+	if (vio == 0) {
 		fprintf (stderr, "Error opening VIO\n");
 		goto exit_err;
 	}
@@ -557,7 +578,7 @@ int main (int argc, char * argv[])
 
 
 	/* Set up memory buffers */
-	src_py = uiomux_malloc (uiomux, UIOMUX_SH_VEU, input_size, 32);
+	src_py = uiomux_malloc (uiomux, uiores, input_size, 32);
 	if (!src_py) {
 		perror("uiomux_malloc");
 		goto exit_err;
@@ -645,7 +666,7 @@ int main (int argc, char * argv[])
 
 	display_close(display);
 	shvio_close(vio);
-	uiomux_free (uiomux, UIOMUX_SH_VEU, src_py, input_size);
+	uiomux_free (uiomux, uiores, src_py, input_size);
 	uiomux_close (uiomux);
 
 	printf("Average time for scale is %luus\n", time_total_us/nr_scales);
