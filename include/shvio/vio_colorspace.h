@@ -42,6 +42,7 @@ typedef enum {
 	REN_NV16,    /**< YCbCr422: Y plane, packed CbCr plane, optional alpha plane */
 	REN_YV12,    /**< YCbCr420p: Y plane, Cr plane, then Cb plane, optional alpha plane */
 	REN_YV16,    /**< YCbCr422p: Y plane, Cr plane, then Cb plane, optional alpha plane */
+	REN_UYVY,    /**< YCbCr422i: packed CbYCrY plane, optional alpha plane */
 	REN_RGB565,  /**< Packed RGB565 */
 	REN_RGB24,   /**< Packed RGB888 */
 	REN_BGR24,   /**< Packed BGR888 */
@@ -89,6 +90,7 @@ static const struct format_info fmts[] = {
 	{ REN_NV16,    1, 2, 1, 1, 2, 1 },
 	{ REN_YV12,    1, 2, 1, 2, 2, 2 },
 	{ REN_YV16,    1, 2, 1, 1, 2, 1 },
+	{ REN_UYVY,    2, 0, 0, 1, 1, 1 },
 	{ REN_RGB565,  2, 0, 0, 1, 1, 1 },
 	{ REN_RGB24,   3, 0, 0, 1, 1, 1 },
 	{ REN_BGR24,   3, 0, 0, 1, 1, 1 },
@@ -98,7 +100,7 @@ static const struct format_info fmts[] = {
 
 static inline int is_ycbcr(ren_vid_format_t fmt)
 {
-	if (fmt >= REN_NV12 && fmt <= REN_YV16)
+	if (fmt >= REN_NV12 && fmt <= REN_UYVY)
 		return 1;
 	return 0;
 }
