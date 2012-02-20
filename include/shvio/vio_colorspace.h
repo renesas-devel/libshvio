@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 
+#include <stdlib.h>
 /* Common information for Renesas video buffers */
 #ifndef __REN_VIDEO_BUFFER_H__
 #define __REN_VIDEO_BUFFER_H__
