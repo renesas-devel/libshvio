@@ -75,52 +75,137 @@ static const struct vio_format_info *fmt_info(ren_vid_format_t format)
 }
 
 #if (DEBUG == 2)
-static const char *regname[0x2a34] = {
+static const char *regname_misc[] = {
 	[0x00000000] = "CMD0",
+	[0x00000004] = "CMD1",
+	[0x00000008] = "CMD2",
+	[0x0000000c] = "CMD3",
 	[0x00000018] = "SRESET",
 	[0x00000020] = "STATUS",
 	[0x00000030] = "WPF0_IRQ_ENB",
 	[0x00000034] = "WPF0_IRQ_STA",
-	[0x00000300] = "RPF0_SRC_BSIZE",
-	[0x00000304] = "RPF0_SRC_ESIZE",
-	[0x00000308] = "RPF0_INFMT",
-	[0x0000030c] = "RPF0_DSWAP",
-	[0x00000310] = "RPF0_LOC",
-	[0x00000314] = "RPF0_ALPH_SEL",
-	[0x00000318] = "RPF0_VRTCOL_SET",
-	[0x00000364] = "RPF0_SRCM_PSTRIDE",
-	[0x00000368] = "RPF0_SRCM_ASTRIDE",
-	[0x0000036c] = "RPF0_SRCM_ADDR_Y",
-	[0x00000370] = "RPF0_SRCM_ADDR_C0",
-	[0x00000374] = "RPF0_SRCM_ADDR_C1",
-	[0x00000380] = "RPF0_CHPRI_CTRL",
-	[0x00001000] = "WPF0_SRCRPFL",
-	[0x00001004] = "WPF0_HSZCLIP",
-	[0x00001008] = "WPF0_VSZCLIP",
-	[0x0000100c] = "WPF0_OUTFMT",
-	[0x00001010] = "WPF0_DSWAP",
-	[0x00001014] = "WPF0_RNDCTRL",
-	[0x0000104c] = "WPF0_DSTM_STRIDE_Y",
-	[0x00001050] = "WPF0_DSTM_STRIDE_C",
-	[0x00001054] = "WPF0_DSTM_ADDR_Y",
-	[0x00001058] = "WPF0_DSTM_ADDR_C0",
-	[0x0000105c] = "WPF0_DSTM_ADDR_C1",
-	[0x00001060] = "WPF0_CHPRI_CTRL",
-	[0x00002000] = "DPR_CTRL0",
-	[0x00002004] = "DPR_CTRL1",
-	[0x00002008] = "DPR_CTRL2",
-	[0x0000200c] = "DPR_CTRL3",
-	[0x00002010] = "DPR_FXA",
-	[0x00002018] = "DPR_FPORCH0",
-	[0x0000201c] = "DPR_FPORCH1",
-	[0x00002020] = "DPR_FPORCH2",
-	[0x00002024] = "DPR_FPORCH3",
-	[0x00002300] = "UDS0_CTRL",
-	[0x00002304] = "UDS0_SCALE",
-	[0x00002310] = "UDS0_PASS_BWIDTH",
-	[0x00002324] = "UDS0_CLIP_SIZE",
-	[0x00002328] = "UDS0_FILL_COLOR",
+	[0x00000030 + 0x0c] = "WPF1_IRQ_ENB",
+	[0x00000034 + 0x0c] = "WPF1_IRQ_STA",
+	[0x00000030 + 0x18] = "WPF2_IRQ_ENB",
+	[0x00000034 + 0x18] = "WPF2_IRQ_STA",
+	[0x00000030 + 0x24] = "WPF3_IRQ_ENB",
+	[0x00000034 + 0x24] = "WPF3_IRQ_STA",
 };
+
+static const char *regname_rpf[] = {
+	[0x00000000] = "SRC_BSIZE",
+	[0x00000004] = "SRC_ESIZE",
+	[0x00000008] = "INFMT",
+	[0x0000000c] = "DSWAP",
+	[0x00000010] = "LOC",
+	[0x00000014] = "ALPH_SEL",
+	[0x00000018] = "VRTCOL_SET",
+	[0x00000064] = "SRCM_PSTRIDE",
+	[0x00000068] = "SRCM_ASTRIDE",
+	[0x0000006c] = "SRCM_ADDR_Y",
+	[0x00000070] = "SRCM_ADDR_C0",
+	[0x00000074] = "SRCM_ADDR_C1",
+	[0x00000080] = "CHPRI_CTRL",
+};
+
+static const char *regname_wpf[] = {
+	[0x00000000] = "SRCRPFL",
+	[0x00000004] = "HSZCLIP",
+	[0x00000008] = "VSZCLIP",
+	[0x0000000c] = "OUTFMT",
+	[0x00000010] = "DSWAP",
+	[0x00000014] = "RNDCTRL",
+	[0x0000004c] = "DSTM_STRIDE_Y",
+	[0x00000050] = "DSTM_STRIDE_C",
+	[0x00000054] = "DSTM_ADDR_Y",
+	[0x00000058] = "DSTM_ADDR_C0",
+	[0x0000005c] = "DSTM_ADDR_C1",
+	[0x00000060] = "CHPRI_CTRL",
+};
+
+static const char *regname_dpr[] = {
+	[0x00000000] = "DPR_CTRL0",
+	[0x00000004] = "DPR_CTRL1",
+	[0x00000008] = "DPR_CTRL2",
+	[0x0000000c] = "DPR_CTRL3",
+	[0x00000010] = "DPR_FXA",
+	[0x00000018] = "DPR_FPORCH0",
+	[0x0000001c] = "DPR_FPORCH1",
+	[0x00000020] = "DPR_FPORCH2",
+	[0x00000024] = "DPR_FPORCH3",
+};
+
+static const char *regname_uds[] = {
+	[0x00000000] = "CTRL",
+	[0x00000004] = "SCALE",
+	[0x00000010] = "PASS_BWIDTH",
+	[0x00000024] = "CLIP_SIZE",
+	[0x00000028] = "FILL_COLOR",
+};
+
+static const char *regname_bru[] = {
+	[0x00000000] = "INCTRL",
+	[0x00000004] = "VIRRPF_SIZE",
+	[0x00000008] = "VIRRPF_LOC",
+	[0x0000000c] = "VIRRPF_COL",
+	[0x00000010] = "A_CTRL",
+	[0x00000014] = "A_BLD",
+	[0x00000018] = "B_CTRL",
+	[0x0000001c] = "B_BLD",
+	[0x00000020] = "C_CTRL",
+	[0x00000024] = "C_BLD",
+	[0x00000028] = "D_CTRL",
+	[0x0000002c] = "D_BLD",
+	[0x00000030] = "ROP",
+};
+
+static inline void show_regname(int reg_nr)
+{
+	if (reg_nr < 0x300)
+		fprintf(stderr, "%-20s", regname_misc[reg_nr]);
+	else if (reg_nr < 0x300)
+		fprintf(stderr, "UNKNOWN (0x%04x)   ", reg_nr);
+	else if (reg_nr < 0x400)
+		fprintf(stderr, "RPF0_%-15s", regname_rpf[reg_nr - 0x300]);
+	else if (reg_nr < 0x500)
+		fprintf(stderr, "RPF1_%-15s", regname_rpf[reg_nr - 0x400]);
+	else if (reg_nr < 0x600)
+		fprintf(stderr, "RPF2_%-15s", regname_rpf[reg_nr - 0x500]);
+	else if (reg_nr < 0x700)
+		fprintf(stderr, "RPF3_%-15s", regname_rpf[reg_nr - 0x600]);
+	else if (reg_nr < 0x800)
+		fprintf(stderr, "RPF4_%-15s", regname_rpf[reg_nr - 0x700]);
+	else if (reg_nr < 0x1000)
+		fprintf(stderr, "UNKNOWN (0x%04x)   ", reg_nr);
+	else if (reg_nr < 0x1100)
+		fprintf(stderr, "WPF0_%-15s", regname_wpf[reg_nr - 0x1000]);
+	else if (reg_nr < 0x1200)
+		fprintf(stderr, "WPF1_%-15s", regname_wpf[reg_nr - 0x1100]);
+	else if (reg_nr < 0x1300)
+		fprintf(stderr, "WPF2_%-15s", regname_wpf[reg_nr - 0x1200]);
+	else if (reg_nr < 0x1400)
+		fprintf(stderr, "WPF3_%-15s", regname_wpf[reg_nr - 0x1300]);
+	else if (reg_nr < 0x2000)
+		fprintf(stderr, "UNKNOWN (0x%04x)   ", reg_nr);
+	else if (reg_nr <= 0x2024)
+		fprintf(stderr, "DPR_%-16s", regname_dpr[reg_nr - 0x2000]);
+	else if (reg_nr < 0x2300)
+		fprintf(stderr, "UNKNOWN (0x%04x)   ", reg_nr);
+	else if (reg_nr <= 0x2328)
+		fprintf(stderr, "UDS0_%-15s", regname_uds[reg_nr - 0x2300]);
+	else if (reg_nr < 0x2600)
+		fprintf(stderr, "UNKNOWN (0x%04x)   ", reg_nr);
+	else if (reg_nr == 0x2600)
+		fprintf(stderr, "LUT                ");
+	else if (reg_nr < 0x2a00)
+		fprintf(stderr, "UNKNOWN (0x%04x)   ", reg_nr);
+	else if (reg_nr <= 0x2a30)
+		fprintf(stderr, "BRU_%-16s", regname_bru[reg_nr - 0x2a00]);
+	else if (reg_nr < 0x2b00)
+		fprintf(stderr, "UNKNOWN (0x%04x)   ", reg_nr);
+	else if (reg_nr <= 0x2b28)
+		fprintf(stderr, "UDS1_%-15s", regname_uds[reg_nr - 0x2b00]);
+}
 #endif
 
 /* Helper functions for reading registers. */
@@ -131,7 +216,9 @@ static uint32_t read_reg(void *base_addr, int reg_nr)
 	uint32_t value = *reg;
 
 #if (DEBUG == 2)
-	fprintf(stderr, "  read_reg[%20s] returned 0x%08x\n", regname[reg_nr], value);
+	fprintf(stderr, "  read_reg[");
+	show_regname(reg_nr);
+	fprintf(stderr, "] returned 0x%08x\n", value);
 	fflush(stderr);
 #endif
 
@@ -143,7 +230,9 @@ static void write_reg(void *base_addr, uint32_t value, int reg_nr)
 	volatile uint32_t *reg = base_addr + reg_nr;
 
 #if (DEBUG == 2)
-	fprintf(stderr, " write_reg[%20s] = 0x%08x\n", regname[reg_nr], value);
+	fprintf(stderr, " write_reg[");
+	show_regname(reg_nr);
+	fprintf(stderr, "] = 0x%08x\n", value);
 	fflush(stderr);
 #endif
 
