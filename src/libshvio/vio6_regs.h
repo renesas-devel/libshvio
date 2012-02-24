@@ -26,10 +26,8 @@
 #define __SHVIO6_REGS_H__
 
 /* common control */
-#define CMD0			0x0000	/* start/stop */
-#define CMD1			0x0004	/* start/stop */
-#define CMD2			0x0008	/* start/stop */
-#define CMD3			0x000c	/* start/stop */
+#define CMD(_n)			\
+	(0x0000	+ ((_n) * 0x0004))	/* start/stop */
 #define SRESET			0x0018	/* software reset */
 #define STATUS			0x0020	/* status */
 #define WPF_IRQ_ENB(_n)		\

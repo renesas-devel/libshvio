@@ -25,6 +25,8 @@
 #include <string.h>
 #include <stdio.h>
 #include <errno.h>
+#include <pthread.h>
+#include <time.h>
 
 #include <uiomux/uiomux.h>
 #include "vio6_regs.h"
@@ -42,6 +44,120 @@
 #endif
 
 #endif
+
+#define VIO6_NUM_ENTITIES	(5 + 4 + 2 + 1 + 1)
+
+static struct shvio_entity vio6_ent[] = {
+	/* RPF */
+	{
+		.idx	=	0,
+		.dpr_target	=	-1,
+		.dpr_ctrl	=	0,
+		.dpr_shift	=	24,
+		.funcs	=	SHVIO_FUNC_SRC | SHVIO_FUNC_CSC,
+		.lock	=	PTHREAD_MUTEX_INITIALIZER,
+	},
+	{
+		.idx	=	1,
+		.dpr_target	=	-1,
+		.dpr_ctrl	=	0,
+		.dpr_shift	=	16,
+		.funcs	=	SHVIO_FUNC_SRC | SHVIO_FUNC_CSC,
+		.lock	=	PTHREAD_MUTEX_INITIALIZER,
+	},
+	{
+		.idx	=	2,
+		.dpr_target	=	-1,
+		.dpr_ctrl	=	0,
+		.dpr_shift	=	8,
+		.funcs	=	SHVIO_FUNC_SRC | SHVIO_FUNC_CSC,
+		.lock	=	PTHREAD_MUTEX_INITIALIZER,
+	},
+	{
+		.idx	=	3,
+		.dpr_target	=	-1,
+		.dpr_ctrl	=	0,
+		.dpr_shift	=	0,
+		.funcs	=	SHVIO_FUNC_SRC | SHVIO_FUNC_CSC,
+		.lock	=	PTHREAD_MUTEX_INITIALIZER,
+	},
+	{
+		.idx	=	4,
+		.dpr_target	=	-1,
+		.dpr_ctrl	=	1,
+		.dpr_shift	=	24,
+		.funcs	=	SHVIO_FUNC_SRC | SHVIO_FUNC_CSC,
+		.lock	=	PTHREAD_MUTEX_INITIALIZER,
+	},
+	/* WPF */
+	{
+		.idx	=	0,
+		.dpr_target	=	26,
+		.dpr_ctrl	=	-1,
+		.dpr_shift	=	-1,
+		.funcs	=	SHVIO_FUNC_SINK | SHVIO_FUNC_CSC,
+		.lock	=	PTHREAD_MUTEX_INITIALIZER,
+	},
+	{
+		.idx	=	1,
+		.dpr_target	=	27,
+		.dpr_ctrl	=	-1,
+		.dpr_shift	=	-1,
+		.funcs	=	SHVIO_FUNC_SINK | SHVIO_FUNC_CSC,
+		.lock	=	PTHREAD_MUTEX_INITIALIZER,
+	},
+	{
+		.idx	=	2,
+		.dpr_target	=	28,
+		.dpr_ctrl	=	-1,
+		.dpr_shift	=	-1,
+		.funcs	=	SHVIO_FUNC_SINK | SHVIO_FUNC_CSC,
+		.lock	=	PTHREAD_MUTEX_INITIALIZER,
+	},
+	{
+		.idx	=	3,
+		.dpr_target	=	29,
+		.dpr_ctrl	=	-1,
+		.dpr_shift	=	-1,
+		.funcs	=	SHVIO_FUNC_SINK | SHVIO_FUNC_CSC,
+		.lock	=	PTHREAD_MUTEX_INITIALIZER,
+	},
+	/* UDS */
+	{
+		.idx	=	0,
+		.dpr_target	=	9,
+		.dpr_ctrl	=	1,
+		.dpr_shift	=	8,
+		.funcs	=	SHVIO_FUNC_SCALE | SHVIO_FUNC_CROP,
+		.lock	=	PTHREAD_MUTEX_INITIALIZER,
+	},
+	{
+		.idx	=	1,
+		.dpr_target	=	22,
+		.dpr_ctrl	=	3,
+		.dpr_shift	=	8,
+		.funcs	=	SHVIO_FUNC_SCALE | SHVIO_FUNC_CROP,
+		.lock	=	PTHREAD_MUTEX_INITIALIZER,
+	},
+	/* LUT */
+	{
+		.idx	=	0,
+		.dpr_target	=	12,
+		.dpr_ctrl	=	2,
+		.dpr_shift	=	16,
+		.funcs	=	SHVIO_FUNC_EFFECT,
+		.lock	=	PTHREAD_MUTEX_INITIALIZER,
+	},
+	/* BRU */
+	{
+		.idx	=	0,
+		.dpr_target	=	13,
+		.dpr_ctrl	=	3,
+		.dpr_shift	=	16,
+		.funcs	=	SHVIO_FUNC_BLEND,
+		.lock	=	PTHREAD_MUTEX_INITIALIZER,
+	},
+};
 
 struct vio_format_info {
 	ren_vid_format_t fmt;
@@ -239,7 +355,7 @@ static void write_reg(void *base_addr, uint32_t value, int reg_nr)
 	*reg = value;
 }
 
-static void set_scale(SHVIO *vio, void *base_addr, int vertical,
+static void set_scale(void *base_addr, int id, int vertical,
 		      int size_in, int size_out)
 {
 	uint32_t fixpoint, mant, frac, value, vb;
@@ -266,7 +382,7 @@ static void set_scale(SHVIO *vio, void *base_addr, int vertical,
 	}
 
 	/* set scale */
-	value = read_reg(base_addr, UDS_SCALE(0));
+	value = read_reg(base_addr, UDS_SCALE(id));
 	if (vertical) {
 		value &= ~0xffff;
 		value |= (mant << 12) | frac;
@@ -274,7 +390,7 @@ static void set_scale(SHVIO *vio, void *base_addr, int vertical,
 		value &= ~0xffff0000;
 		value |= ((mant << 12) | frac) << 16;
 	}
-	write_reg(base_addr, value, UDS_SCALE(0));
+	write_reg(base_addr, value, UDS_SCALE(id));
 
 	/* Assumption that anything newer than VIO2H has VRPBR */
 	if (size_out >= size_in)
@@ -291,7 +407,7 @@ static void set_scale(SHVIO *vio, void *base_addr, int vertical,
 	}
 
 	/* set resize passband register */
-	value = read_reg(base_addr, UDS_PASS_BWIDTH(0));
+	value = read_reg(base_addr, UDS_PASS_BWIDTH(id));
 	if (vertical) {
 		value &= ~0xffff;
 		value |= vb;
@@ -299,7 +415,7 @@ static void set_scale(SHVIO *vio, void *base_addr, int vertical,
 		value &= ~0xffff0000;
 		value |= vb << 16;
 	}
-	write_reg(base_addr, value, UDS_PASS_BWIDTH(0));
+	write_reg(base_addr, value, UDS_PASS_BWIDTH(id));
 }
 
 static int format_supported(ren_vid_format_t fmt)
@@ -400,19 +516,314 @@ vio6_set_dst_phys(
 	write_reg(base_addr, dst_pc, WPF_DSTM_ADDR_C0(0));
 }
 
+static void
+vio6_reset(SHVIO *vio)
+{
+	struct shvio_entity *entity;
+	void *base_addr = vio->uio_mmio.iomem;
+	const struct timespec timeout = {
+		.tv_sec = 0,
+		.tv_nsec = 1000 * 1000,
+	};
+	uint32_t val;
+	int i;
+
+	/* look for the sink entity */
+	entity = vio->locked_entities;
+	while (entity != NULL &&
+	       ((entity->funcs & SHVIO_FUNC_SINK) == 0))
+		entity = entity->list_next;
+
+	if (entity == NULL) {
+		debug_info("ERR: no sink entity");
+		return;
+	}
+
+	base_addr = vio->uio_mmio.iomem;
+
+	/* WPF: disable interrupt */
+	write_reg(base_addr, 0, WPF_IRQ_ENB(entity->idx));
+
+	/* WPF: software reset */
+	if (read_reg(base_addr, STATUS) & (1 << entity->idx)) {
+		write_reg(base_addr, 1 << entity->idx, SRESET);
+		for (i=0; i<10; i++) {
+			if (read_reg(base_addr, WPF_IRQ_STA(entity->idx)) != 0)
+				break;
+			nanosleep(&timeout, NULL);	/* wait 1ms */
+		}
+		write_reg(base_addr, 0, WPF_IRQ_STA(entity->idx));
+	}
+
+	/* DPR: set the termination for routing registers */
+	for (i=VIO6_NUM_ENTITIES-1; i>=0; i--) {
+		if (vio6_ent[i].dpr_ctrl < 0)
+			continue;
+		val = read_reg(base_addr, DPR_CTRL(vio6_ent[i].dpr_ctrl));
+		if ((val & (0x1f << vio6_ent[i].dpr_shift)) != 0)
+			continue;
+		val |= 0x1f << vio6_ent[i].dpr_shift;
+		write_reg(base_addr, val, DPR_CTRL(vio6_ent[i].dpr_ctrl));
+	}
+
+	write_reg(base_addr, 0, DPR_FXA);
+	write_reg(base_addr, 0, DPR_FPORCH(0));
+	write_reg(base_addr, 0, DPR_FPORCH(1));
+	write_reg(base_addr, (5 << 16) | (5 << 8) | 5, DPR_FPORCH(2));
+	write_reg(base_addr, 5 << 24, DPR_FPORCH(3));
+}
+
+static void
+vio6_rpf_setup(SHVIO *vio, struct shvio_entity *entity,
+	       const struct ren_vid_surface *src,
+	       const struct ren_vid_surface *dst)
+{
+	void *base_addr = vio->uio_mmio.iomem;
+	const struct vio_format_info *viofmt;
+	uint32_t val;
+	uint32_t Y, Cb;
+
+	viofmt = fmt_info(src->format);
+	val = viofmt->fmtid;
+	if (is_ycbcr(src->format) == is_rgb(dst->format))
+		val |= FMT_DO_CSC;
+	write_reg(base_addr, val, RPF_INFMT(entity->idx));
+#if defined(__LITTLE_ENDIAN__)
+	write_reg(base_addr, viofmt->dswap, RPF_DSWAP(entity->idx));
+#else
+	write_reg(base_addr, 0, RPF_DSWAP(entity->idx));
+#endif
+
+	/* RPF: source setting */
+	Y = uiomux_all_virt_to_phys(src->py);
+	write_reg(base_addr, Y, RPF_SRCM_ADDR_Y(entity->idx));
+	Cb = uiomux_all_virt_to_phys(src->pc);
+	write_reg(base_addr, Cb, RPF_SRCM_ADDR_C0(entity->idx));
+	if (is_ycbcr_planar(src->format)) {
+		uint32_t Cr;
+		Cr = uiomux_all_virt_to_phys(src->pc2);
+		write_reg(base_addr, Cr, RPF_SRCM_ADDR_C1(entity->idx));
+	}
+	write_reg(base_addr, 0, RPF_LOC(entity->idx));
+	if (src->format == REN_ARGB32)
+		write_reg(base_addr, 0, RPF_ALPH_SEL(entity->idx));
+	else
+		write_reg(base_addr, 4 << 28, RPF_ALPH_SEL(entity->idx));
+	write_reg(base_addr, 0, RPF_VRTCOL_SET(entity->idx));
+	/* RPF_MSKCTRL, RPF_MSKSET0, RPF_MSKSET1,
+	   RPF_CKEY_CTRL, RPF_CKEY_SET0, RPF_CKEY_SET1 */
+	write_reg(base_addr, (src->w << 16) | src->h, RPF_SRC_BSIZE(entity->idx));
+	write_reg(base_addr, (src->w << 16) | src->h, RPF_SRC_ESIZE(entity->idx));
+	val = size_y(src->format, src->pitch, src->bpitchy);
+	val = val << 16;
+	if (is_ycbcr_planar(src->format))
+		val |= size_c(src->format, src->pitch, src->bpitchc);
+	else
+		val |= size_y(src->format, src->pitch, src->bpitchc);
+	write_reg(base_addr, val, RPF_SRCM_PSTRIDE(entity->idx));
+	val = size_a(src->format, src->pitch, src->bpitcha);
+	write_reg(base_addr, val, RPF_SRCM_ASTRIDE(entity->idx));
+	write_reg(base_addr, PRIO_ICB, RPF_CHPRI_CTRL(entity->idx));
+}
+
+static inline void rpfact(struct shvio_entity *entity, uint32_t *val)
+{
+	int i;
+
+	for (i=0; i<N_INPADS; i++)
+		if (entity->pad_in[i] != NULL)
+			rpfact(entity->pad_in[i], val);
+	if (entity->funcs & SHVIO_FUNC_SRC)
+		*val |= 1 << (entity->idx * 2);
+
+}
+
+static void
+vio6_wpf_setup(SHVIO *vio, struct shvio_entity *entity,
+	       const struct ren_vid_surface *src,
+	       const struct ren_vid_surface *dst)
+{
+	void *base_addr = vio->uio_mmio.iomem;
+	const struct vio_format_info *viofmt;
+	uint32_t val;
+	uint32_t Y, Cb;
+
+	/* WPF: destination setting */
+	Y = uiomux_all_virt_to_phys(dst->py);
+	write_reg(base_addr, Y, WPF_DSTM_ADDR_Y(entity->idx));
+	Cb = uiomux_all_virt_to_phys(dst->pc);
+	write_reg(base_addr, Cb, WPF_DSTM_ADDR_C0(entity->idx));
+	if (is_ycbcr_planar(dst->format)) {
+		uint32_t Cr;
+		Cr = uiomux_all_virt_to_phys(dst->pc2);
+		write_reg(base_addr, Cr, WPF_DSTM_ADDR_C1(entity->idx));
+	}
+
+	val = 0;
+	rpfact(entity, &val);
+	write_reg(base_addr, val, WPF_SRCRPF(entity->idx));
+	write_reg(base_addr, 0, WPF_HSZCLIP(entity->idx));
+	write_reg(base_addr, 0, WPF_VSZCLIP(entity->idx));
+	write_reg(base_addr, RND_CBRM_ROUND|RND_ABRM_ROUND, WPF_RNDCTRL(entity->idx));
+	val = size_y(dst->format, dst->pitch, dst->bpitchy);
+	write_reg(base_addr, val, WPF_DSTM_STRIDE_Y(entity->idx));
+	if (is_ycbcr_planar(dst->format))
+		val = size_c(dst->format, dst->pitch, dst->bpitchc);
+	else
+		val = size_y(dst->format, dst->pitch, dst->bpitchc);
+	write_reg(base_addr, val, WPF_DSTM_STRIDE_C(entity->idx));
+	write_reg(base_addr, PRIO_ICB, WPF_CHPRI_CTRL(entity->idx));
+
+	viofmt = fmt_info(dst->format);
+	val = viofmt->fmtid;
+	if (is_ycbcr(src->format) == is_rgb(dst->format))
+		val |= FMT_DO_CSC;
+	val |= FMT_PXA_DPR;	/* fill PAD with alpha value
+				   passed through DPR */
+	write_reg(base_addr, val, WPF_OUTFMT(entity->idx));
+#if defined(__LITTLE_ENDIAN__)
+	write_reg(base_addr, viofmt->dswap, WPF_DSWAP(entity->idx));
+#else
+	write_reg(base_addr, 0, WPF_DSWAP(entity->idx));
+#endif
+}
+
+static void
+vio6_uds_setup(SHVIO *vio, struct shvio_entity *entity,
+	       const struct ren_vid_surface *src,
+	       const struct ren_vid_surface *dst)
+{
+	void *base_addr = vio->uio_mmio.iomem;
+
+	/* UDF: scale setting */
+	write_reg(base_addr, UDS_FMD | UDS_AON, UDS_CTRL(entity->idx));
+	write_reg(base_addr, 0, UDS_SCALE(entity->idx));
+	write_reg(base_addr, 0, UDS_PASS_BWIDTH(entity->idx));
+	set_scale(base_addr, entity->idx, 0, src->w, dst->w);
+	set_scale(base_addr, entity->idx, 1, src->h, dst->h);
+	write_reg(base_addr, dst->w << 16 | dst->h, UDS_CLIP_SIZE(entity->idx));
+	write_reg(base_addr, 0, UDS_FILL_COLOR(entity->idx));
+
+}
+
+static void
+vio6_unlink(SHVIO *vio, struct shvio_entity *entity)
+{
+	void *base_addr = vio->uio_mmio.iomem;
+	struct shvio_entity *prev_entity;
+	uint32_t val;
+	int i;
+
+	if (entity->pad_out != NULL) {
+		for (i=0; i<N_INPADS; i++) {
+			if (entity->pad_out->pad_in[i] == entity) {
+				entity->pad_out->pad_in[i] = NULL;
+				break;
+			}
+		}
+
+		if (entity->dpr_ctrl >= 0) {
+			val = read_reg(base_addr, DPR_CTRL(entity->dpr_ctrl));
+			val |= 0x1f << entity->dpr_shift;
+			write_reg(base_addr, val, DPR_CTRL(entity->dpr_ctrl));
+		}
+	}
+
+	for (i=0; i<N_INPADS; i++) {
+		prev_entity = entity->pad_in[i];
+		if (prev_entity != NULL) {
+			prev_entity->pad_out = NULL;
+			val = read_reg(base_addr, DPR_CTRL(prev_entity->dpr_ctrl));
+			val |= 0x1f << prev_entity->dpr_shift;
+			write_reg(base_addr, val, DPR_CTRL(prev_entity->dpr_ctrl));
+		}
+	}
+}
+
+static int
+vio6_link(SHVIO *vio, struct shvio_entity *src, struct shvio_entity *sink, int sinkpad)
+{
+	void *base_addr = vio->uio_mmio.iomem;
+	uint32_t val;
+
+	if ((src->pad_out != NULL) ||
+	    (sinkpad < 0) || (sinkpad >= N_INPADS) ||
+	    (sink->pad_in[sinkpad] != NULL)) {
+		debug_info("ERR: a pad already linked");
+		return -1;
+	}
+
+	val = read_reg(base_addr, DPR_CTRL(src->dpr_ctrl));
+	val &= ~(0x1f << src->dpr_shift);
+	val |= sink->dpr_target << src->dpr_shift;
+	write_reg(base_addr, val, DPR_CTRL(src->dpr_ctrl));
+
+	sink->pad_in[sinkpad] = src;
+	src->pad_out = sink;
+
+	return 0;
+}
+
+static void
+vio6_unlock(SHVIO *vio, struct shvio_entity *entity)
+{
+	/* confirm 'unlinked' */
+	if ((entity->pad_in[0] != NULL) ||
+	    (entity->pad_out != NULL))
+		vio6_unlink(vio, entity);
+
+	if (entity->list_prev)
+		entity->list_prev->list_next = entity->list_next;
+	if (entity->list_next)
+		entity->list_next->list_prev = entity->list_prev;
+	if (vio->locked_entities == entity)
+		vio->locked_entities = entity->list_next;
+
+	pthread_mutex_unlock(&entity->lock);
+}
+
+static struct shvio_entity *
+vio6_lock(SHVIO *vio, int func)
+{
+	struct shvio_entity *ent;
+	int i;
+	int ret;
+
+	for (i=0; i<VIO6_NUM_ENTITIES; i++) {
+		if (vio6_ent[i].funcs & func) {
+			ret = pthread_mutex_trylock(&vio6_ent[i].lock);
+			if (ret != 0)
+				continue;
+			memset(vio6_ent[i].pad_in, 0, sizeof(struct shvio_entity *) * N_INPADS);
+			vio6_ent[i].pad_out = NULL;
+			vio6_ent[i].list_prev = NULL;
+			vio6_ent[i].list_next = vio->locked_entities;
+			if (vio->locked_entities)
+				vio->locked_entities->list_prev = &vio6_ent[i];
+			vio->locked_entities = &vio6_ent[i];
+			return &vio6_ent[i];
+		}
+	}
+
+	debug_info("LOG: no entity found");
+	return NULL;
+}
+
 static int
 vio6_setup(
 	SHVIO *vio,
 	const struct ren_vid_surface *src,
-	const struct ren_vid_surface *dst)
+	const struct ren_vid_surface *dst,
+	shvio_rotation_t rotate)
 {
 	float scale_x, scale_y;
 	uint32_t Y, C;
 	const struct vio_format_info *src_info;
 	const struct vio_format_info *dst_info;
-	const struct vio_format_info *viofmt;
 	uint32_t val;
 	void *base_addr;
+	struct shvio_entity *ent_src, *ent_scale, *ent_sink;
+	int ret;
 
 	src_info = fmt_info(src->format);
 	dst_info = fmt_info(dst->format);
@@ -423,107 +834,41 @@ vio6_setup(
 		return -1;
 	}
 
-	base_addr = vio->uio_mmio.iomem;
+	/* unlock all entities once */
+	while (vio->locked_entities != NULL)
+		vio6_unlock(vio, vio->locked_entities);
 
-	/* WPF: disable interrupt */
-	write_reg(base_addr, 0, WPF_IRQ_ENB(0));
+	ent_src = vio6_lock(vio, SHVIO_FUNC_SRC);
+	ent_scale = vio6_lock(vio, SHVIO_FUNC_SCALE);
+	ent_sink = vio6_lock(vio, SHVIO_FUNC_SINK);
 
-	/* WPF: software reset */
-	if (read_reg(base_addr, STATUS) & 0x01) {
-		write_reg(base_addr, 1, SRESET);
-		while (read_reg(base_addr, WPF_IRQ_STA(0)) == 0);
-		write_reg(base_addr, 0, WPF_IRQ_STA(0));
+	if ((ent_src == NULL) ||
+	    (ent_scale == NULL) || (ent_sink == NULL)) {
+		debug_info("ERR: No entity unavailable!");
+		goto fail_lock_entities;
 	}
 
-	/* WPF: destination setting */
-	if (is_ycbcr_planar(dst->format))
-		vio6_set_dst2(vio, dst->py, dst->pc, dst->pc2);
-	else
-		vio6_set_dst(vio, dst->py, dst->pc);
-	write_reg(base_addr, SRC_RPF0_MAIN, WPF_SRCRPF(0));
-	write_reg(base_addr, 0, WPF_HSZCLIP(0));
-	write_reg(base_addr, 0, WPF_VSZCLIP(0));
-	write_reg(base_addr, RND_CBRM_ROUND|RND_ABRM_ROUND, WPF_RNDCTRL(0));
-	val = size_y(dst->format, dst->pitch, dst->bpitchy);
-	write_reg(base_addr, val, WPF_DSTM_STRIDE_Y(0));
-	if (is_ycbcr_planar(dst->format))
-		val = size_c(dst->format, dst->pitch, dst->bpitchc);
-	else
-		val = size_y(dst->format, dst->pitch, dst->bpitchc);
-	write_reg(base_addr, val, WPF_DSTM_STRIDE_C(0));
-	write_reg(base_addr, PRIO_ICB, WPF_CHPRI_CTRL(0));
+	vio6_reset(vio);
+	ret = vio6_link(vio, ent_src, ent_scale, 0);	/* make a link from src to scale */
+	if (ret < 0) {
+		debug_info("ERR: cannot make a link from src to scale");
+		goto fail_link_entities;
+	}
+	vio6_rpf_setup(vio, ent_src, src, src);	/* color */
+	vio6_uds_setup(vio, ent_scale, src, dst);	/* width, height */
 
-	/* RPF/WPF: color conversion setting */
-	viofmt = fmt_info(src->format);
-	write_reg(base_addr, viofmt->fmtid, RPF_INFMT(0));
-#if defined(__LITTLE_ENDIAN__)
-	write_reg(base_addr, viofmt->dswap, RPF_DSWAP(0));
-#else
-	write_reg(base_addr, 0, RPF_DSWAP(0));
-#endif
-	viofmt = fmt_info(dst->format);
-	val = viofmt->fmtid;
-	if (is_ycbcr(src->format) == is_rgb(dst->format))
-		val |= FMT_DO_CSC;
-	val |= FMT_PXA_DPR;	/* fill PAD with alpha value
-				   passed through DPR */
-	write_reg(base_addr, val, WPF_OUTFMT(0));
-#if defined(__LITTLE_ENDIAN__)
-	write_reg(base_addr, viofmt->dswap, WPF_DSWAP(0));
-#else
-	write_reg(base_addr, 0, WPF_DSWAP(0));
-#endif
-
-	/* RPF: source setting */
-	if (is_ycbcr_planar(src->format))
-		vio6_set_src2(vio, src->py, src->pc, src->pc2);
-	else
-		vio6_set_src(vio, src->py, src->pc);
-	write_reg(base_addr, 0, RPF_LOC(0));
-	if (src->format == REN_ARGB32)
-		write_reg(base_addr, 0, RPF_ALPH_SEL(0));
-	else
-		write_reg(base_addr, 4 << 28, RPF_ALPH_SEL(0));
-	write_reg(base_addr, 0, RPF_VRTCOL_SET(0));
-	/* RPF_MSKCTRL, RPF_MSKSET0, RPF_MSKSET1,
-	   RPF_CKEY_CTRL, RPF_CKEY_SET0, RPF_CKEY_SET1 */
-	write_reg(base_addr, (src->w << 16) | src->h, RPF_SRC_BSIZE(0));
-	write_reg(base_addr, (src->w << 16) | src->h, RPF_SRC_ESIZE(0));
-	val = size_y(src->format, src->pitch, src->bpitchy);
-	val = val << 16;
-	if (is_ycbcr_planar(src->format))
-		val |= size_c(src->format, src->pitch, src->bpitchc);
-	else
-		val |= size_y(src->format, src->pitch, src->bpitchc);
-	write_reg(base_addr, val, RPF_SRCM_PSTRIDE(0));
-	val = size_a(src->format, src->pitch, src->bpitcha);
-	write_reg(base_addr, val, RPF_SRCM_ASTRIDE(0));
-	write_reg(base_addr, PRIO_ICB, RPF_CHPRI_CTRL(0));
-
-	/* UDF: scale setting */
-	write_reg(base_addr, UDS_FMD | UDS_AON, UDS_CTRL(0));
-	write_reg(base_addr, 0, UDS_SCALE(0));
-	write_reg(base_addr, 0, UDS_PASS_BWIDTH(0));
-	set_scale(vio, base_addr, 0, src->w, dst->w);
-	set_scale(vio, base_addr, 1, src->h, dst->h);
-	write_reg(base_addr, dst->w << 16 | dst->h, UDS_CLIP_SIZE(0));
-	write_reg(base_addr, 0, UDS_FILL_COLOR(0));
-
-	/* DPR: node link setting */
-	write_reg(base_addr, (9 << 24) | (31 << 16) |
-		  (31 << 8) | 31, DPR_CTRL(0));	/* RPF0 -> UDS0 */
-	write_reg(base_addr, (31 << 24) |
-		  (26 << 8), DPR_CTRL(1));	/* UDS0 -> WPF0 */
-	write_reg(base_addr, 31 << 16, DPR_CTRL(2));
-	write_reg(base_addr, (31 << 8) | (31 << 16), DPR_CTRL(3));
-	write_reg(base_addr, 0, DPR_FXA);
-	write_reg(base_addr, 0, DPR_FPORCH(0));
-	write_reg(base_addr, 0, DPR_FPORCH(1));
-	write_reg(base_addr, (5 << 16) | (5 << 8) | 5, DPR_FPORCH(2));
-	write_reg(base_addr, 5 << 24, DPR_FPORCH(3));
+	ret = vio6_link(vio, ent_scale, ent_sink, 0);	/* make a link from scale to sink */
+	if (ret < 0) {
+		debug_info("ERR: cannot make a link from scale to sink");
+		goto fail_link_entities;
+	}
+	vio6_wpf_setup(vio, ent_sink, src, dst);	/* color */
 
 	return 0;
-fail:
+fail_link_entities:
+fail_lock_entities:
+	while (vio->locked_entities != NULL)
+		vio6_unlock(vio, vio->locked_entities);
 	return -1;
 }
 
@@ -531,12 +876,21 @@ static void
 vio6_start(SHVIO *vio)
 {
 	void *base_addr = vio->uio_mmio.iomem;
+	struct shvio_entity *entity;
+
+	entity = vio->locked_entities;
+	while (entity != NULL &&
+	       ((entity->funcs & SHVIO_FUNC_SINK) == 0))
+		entity = entity->list_next;
+
+	if (entity == NULL)
+		return;
 
 	/* enable interrupt in VIO */
-	write_reg(base_addr, 1, WPF_IRQ_ENB(0));
+	write_reg(base_addr, 1, WPF_IRQ_ENB(entity->idx));
 
 	/* start operation */
-	write_reg(base_addr, 1, CMD0);
+	write_reg(base_addr, 1, CMD(entity->idx));
 }
 
 static int
@@ -545,15 +899,28 @@ vio6_wait(SHVIO *vio)
 	void *base_addr = vio->uio_mmio.iomem;
 	uint32_t vevtr;
 	uint32_t vstar;
-	int complete = 0;
+	int complete;
+	struct shvio_entity *entity;
 
-	uiomux_sleep(vio->uiomux, vio->uiores);
+	/* look for a sink entity */
+	entity = vio->locked_entities;
+	while (entity != NULL &&
+	       ((entity->funcs & SHVIO_FUNC_SINK) == 0))
+		entity = entity->list_next;
 
-	vevtr = read_reg(base_addr, WPF_IRQ_STA(0));
-	write_reg(base_addr, 0, WPF_IRQ_STA(0));   /* ack interrupts */
+	if (entity == NULL)
+		return -1;
 
-	/* End of VIO operation? */
-	complete = vevtr & 1;
+	do {
+		/* wait for an interrupt */
+		uiomux_sleep(vio->uiomux, vio->uiores);
+
+		/* confirm the status */
+		vevtr = read_reg(base_addr, WPF_IRQ_STA(entity->idx));
+		complete = vevtr & 1;
+	} while (complete == 0);	/* End of VIO operation? */
+
+	write_reg(base_addr, 0, WPF_IRQ_STA(entity->idx));   /* ack interrupts */
 
 	return complete;
 }

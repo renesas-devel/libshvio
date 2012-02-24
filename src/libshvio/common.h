@@ -53,6 +53,32 @@ struct shvio_operations {
 	int (*wait)(SHVIO *vio);
 };
 
+typedef enum {
+	SHVIO_FUNC_SRC =	1 << 0,
+	SHVIO_FUNC_CSC =	1 << 1,
+	SHVIO_FUNC_SCALE =	1 << 2,
+	SHVIO_FUNC_CROP =	1 << 3,
+	SHVIO_FUNC_EFFECT =	1 << 4,
+	SHVIO_FUNC_BLEND =	1 << 5,
+	SHVIO_FUNC_SINK =	1 << 6,
+} shvio_func_t;
+
+#define N_INPADS	4
+
+struct shvio_entity {
+	int			idx;
+	int			dpr_target;
+	int			dpr_ctrl;
+	int			dpr_shift;
+	shvio_func_t		funcs;
+	pthread_mutex_t		lock;
+
+	struct shvio_entity *	pad_in[N_INPADS];
+	struct shvio_entity *	pad_out;
+	struct shvio_entity *	list_prev;
+	struct shvio_entity *	list_next;
+};
+
 struct SHVIO {
 	UIOMux *uiomux;
 	uiomux_resource_t uiores;
@@ -65,6 +91,7 @@ struct SHVIO {
 	int full_range;
 
 	struct shvio_operations ops;
+	struct shvio_entity *locked_entities;
 };
 
 #endif /* __API_H__ */
