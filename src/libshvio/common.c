@@ -256,12 +256,16 @@ shvio_setup(
 	vio->src_hw = local_src;
 	vio->dst_hw = local_dst;
 
+	uiomux_lock (vio->uiomux, vio->uiores);
+
 	if (vio->ops.setup(vio, src, dst, filter_control) < 0)
 		goto fail_setup;
 
 	return 0;
 
 fail_setup:
+	uiomux_unlock(vio->uiomux, vio->uiores);
+
 	if (vio->dst_hw.py != dst_surface->py) {
 		size_t len = size_y(vio->dst_hw.format, vio->dst_hw.h * vio->dst_hw.w, 0);
 		len += size_c(vio->dst_hw.format, vio->dst_hw.h * vio->dst_hw.w, 0);

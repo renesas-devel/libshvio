@@ -256,8 +256,6 @@ veu_setup(
 		return -1;
 	}
 
-	uiomux_lock (vio->uiomux, vio->uiores);
-
 	base_addr = vio->uio_mmio.iomem;
 
 	/* Software reset */
@@ -379,7 +377,6 @@ veu_setup(
 	return 0;
 
 fail:
-	uiomux_unlock(vio->uiomux, vio->uiores);
 	return -1;
 }
 
