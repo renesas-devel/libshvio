@@ -609,7 +609,7 @@ vio6_rpf_setup(SHVIO *vio, struct shvio_entity *entity,
 		write_reg(base_addr, 0, RPF_ALPH_SEL(entity->idx));
 	else
 		write_reg(base_addr, 4 << 28, RPF_ALPH_SEL(entity->idx));
-	write_reg(base_addr, 0, RPF_VRTCOL_SET(entity->idx));
+	write_reg(base_addr, 0xff << 24, RPF_VRTCOL_SET(entity->idx));
 	/* RPF_MSKCTRL, RPF_MSKSET0, RPF_MSKSET1,
 	   RPF_CKEY_CTRL, RPF_CKEY_SET0, RPF_CKEY_SET1 */
 	write_reg(base_addr, (src->w << 16) | src->h, RPF_SRC_BSIZE(entity->idx));
