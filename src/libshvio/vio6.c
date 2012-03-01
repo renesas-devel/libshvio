@@ -834,10 +834,6 @@ vio6_setup(
 		return -1;
 	}
 
-	/* unlock all entities once */
-	while (vio->locked_entities != NULL)
-		vio6_unlock(vio, vio->locked_entities);
-
 	ent_src = vio6_lock(vio, SHVIO_FUNC_SRC);
 	ent_scale = vio6_lock(vio, SHVIO_FUNC_SCALE);
 	ent_sink = vio6_lock(vio, SHVIO_FUNC_SINK);
@@ -921,6 +917,10 @@ vio6_wait(SHVIO *vio)
 	} while (complete == 0);	/* End of VIO operation? */
 
 	write_reg(base_addr, 0, WPF_IRQ_STA(entity->idx));   /* ack interrupts */
+
+	/* unlock all entities */
+	while (vio->locked_entities != NULL)
+		vio6_unlock(vio, vio->locked_entities);
 
 	return complete;
 }
