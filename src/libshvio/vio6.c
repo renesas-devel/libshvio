@@ -361,22 +361,11 @@ static void set_scale(void *base_addr, int id, int vertical,
 	uint32_t fixpoint, mant, frac, value, vb;
 
 	/* calculate FRAC and MANT */
-
-	fixpoint = (4096 * (size_in - 1)) / (size_out - 1);
-	mant = fixpoint / 4096;
-	frac = fixpoint - (mant * 4096);
-
-	if (frac & 0x07) {
-		frac &= ~0x07;
-
-		if (size_out > size_in)
-			frac -= 8;	/* round down if scaling up */
-		else
-			frac += 8;	/* round up if scaling down */
-	}
-
-	/* Fix calculation for 1 to 1 scaling */
-	if (size_in == size_out){
+	if (size_in != size_out) {
+		fixpoint = (4096 * size_in) / size_out;
+		mant = fixpoint / 4096;
+		frac = fixpoint - (mant * 4096);
+	} else {
 		mant = 1;
 		frac = 0;
 	}
@@ -696,7 +685,7 @@ vio6_uds_setup(SHVIO *vio, struct shvio_entity *entity,
 	void *base_addr = vio->uio_mmio.iomem;
 
 	/* UDF: scale setting */
-	write_reg(base_addr, UDS_FMD | UDS_AON, UDS_CTRL(entity->idx));
+	write_reg(base_addr, UDS_AMD | UDS_FMD | UDS_AON, UDS_CTRL(entity->idx));
 	write_reg(base_addr, 0, UDS_SCALE(entity->idx));
 	write_reg(base_addr, 0, UDS_PASS_BWIDTH(entity->idx));
 	set_scale(base_addr, entity->idx, 0, src->w, dst->w);
