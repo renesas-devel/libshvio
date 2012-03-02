@@ -53,6 +53,8 @@
 #define FMT_ARGB8888		0x13
 #define FMT_RGBX888		0x14
 #define FMT_DO_CSC		(1 << 8)
+#define FMT_WRTM_FULL_RANGE	(1 << 9)
+#define FMT_WRTM_BT709		(1 << 10)
 #define FMT_PXA_DPR		(1 << 23)
 
 #define RPF_DSWAP(_n)		\
