@@ -281,61 +281,6 @@ fail_get_hw_surface_dst:
 	return -1;
 }
 
-int
-shvio_fill(
-	SHVIO *vio,
-	const struct ren_vid_surface *dst_surface,
-	uint32_t argb)
-{
-	struct ren_vid_surface local_dst;
-	struct ren_vid_surface *dst = &local_dst;
-
-	dbg(__func__, __LINE__, "dst_user", dst_surface);
-
-	if (!vio || !dst_surface) {
-		debug_info("ERR: Invalid input - need dest");
-		return -1;
-	}
-
-	if (!vio->ops.fill) {
-		debug_info("ERR: Unsupported by HW");
-		return -1;
-	}
-
-	/* destination - use a buffer the hardware can access */
-	if (get_hw_surface(vio->uiomux, vio->uiores, dst, dst_surface) < 0) {
-		debug_info("ERR: dest is not accessible by hardware");
-		goto fail_get_hw_surface_dst;
-	}
-
-	/* Keep track of the requested surfaces */
-	memset(&vio->src_user, 0, sizeof(vio->src_user));
-	vio->dst_user = *dst_surface;
-
-	/* Keep track of the actual surfaces used */
-	memset(&vio->src_hw, 0, sizeof(vio->src_hw));
-	vio->dst_hw = local_dst;
-
-	uiomux_lock (vio->uiomux, vio->uiores);
-
-	if (vio->ops.fill(vio, dst, argb) < 0)
-		goto fail_fill;
-
-	return 0;
-
-fail_fill:
-	uiomux_unlock(vio->uiomux, vio->uiores);
-
-	if (vio->dst_hw.py != dst_surface->py) {
-		size_t len = size_y(vio->dst_hw.format, vio->dst_hw.h * vio->dst_hw.w, 0);
-		len += size_c(vio->dst_hw.format, vio->dst_hw.h * vio->dst_hw.w, 0);
-		uiomux_free(vio->uiomux, vio->uiores, vio->dst_hw.py, len);
-	}
-fail_get_hw_surface_dst:
-
-	return -1;
-}
-
 void
 shvio_set_src(
 	SHVIO *vio,
@@ -463,4 +408,62 @@ shvio_rotate(
 	}
 
 	return ret;
+}
+
+int
+shvio_fill(
+	SHVIO *vio,
+	const struct ren_vid_surface *dst_surface,
+	uint32_t argb)
+{
+	struct ren_vid_surface local_dst;
+	struct ren_vid_surface *dst = &local_dst;
+
+	dbg(__func__, __LINE__, "dst_user", dst_surface);
+
+	if (!vio || !dst_surface) {
+		debug_info("ERR: Invalid input - need dest");
+		return -1;
+	}
+
+	if (!vio->ops.fill) {
+		debug_info("ERR: Unsupported by HW");
+		return -1;
+	}
+
+	/* destination - use a buffer the hardware can access */
+	if (get_hw_surface(vio->uiomux, vio->uiores, dst, dst_surface) < 0) {
+		debug_info("ERR: dest is not accessible by hardware");
+		goto fail_get_hw_surface_dst;
+	}
+
+	/* Keep track of the requested surfaces */
+	memset(&vio->src_user, 0, sizeof(vio->src_user));
+	vio->dst_user = *dst_surface;
+
+	/* Keep track of the actual surfaces used */
+	memset(&vio->src_hw, 0, sizeof(vio->src_hw));
+	vio->dst_hw = local_dst;
+
+	uiomux_lock (vio->uiomux, vio->uiores);
+
+	if (vio->ops.fill(vio, dst, argb) < 0)
+		goto fail_fill;
+
+	shvio_start(vio);
+	shvio_wait(vio);
+
+	return 0;
+
+fail_fill:
+	uiomux_unlock(vio->uiomux, vio->uiores);
+
+	if (vio->dst_hw.py != dst_surface->py) {
+		size_t len = size_y(vio->dst_hw.format, vio->dst_hw.h * vio->dst_hw.w, 0);
+		len += size_c(vio->dst_hw.format, vio->dst_hw.h * vio->dst_hw.w, 0);
+		uiomux_free(vio->uiomux, vio->uiores, vio->dst_hw.py, len);
+	}
+fail_get_hw_surface_dst:
+
+	return -1;
 }
