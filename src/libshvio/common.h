@@ -45,6 +45,8 @@ struct shvio_operations {
 	int (*setup)(SHVIO *vio, const struct ren_vid_surface *src_surface,
 		     const struct ren_vid_surface *dst_surface,
 		     shvio_rotation_t filter_control);
+	int (*fill)(SHVIO *vio, const struct ren_vid_surface *dst_surface,
+		    uint32_t rgb);
 	void (*set_src)(SHVIO *vio, void *src_py, void *src_pc);
 	void (*set_src_phys)(SHVIO *vio, uint32_t src_py, uint32_t src_pc);
 	void (*set_dst)(SHVIO *vio, void *dst_py, void *dst_pc);

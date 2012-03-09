@@ -23,6 +23,7 @@
  */
 
 #include <stdlib.h>
+#include <stdint.h>
 /* Common information for Renesas video buffers */
 #ifndef __REN_VIDEO_BUFFER_H__
 #define __REN_VIDEO_BUFFER_H__
@@ -338,5 +339,20 @@ shvio_rotate(
 	const struct ren_vid_surface *src_surface,
 	const struct ren_vid_surface *dst_surface,
 	shvio_rotation_t rotate);
+
+/** Perform filling a surface with a const ARGB color
+ * This operates on entire surface and blocks until completion.
+ *
+ * \param vio VIO handle
+ * \param dst_surface Output surface
+ * \param argb Color of ARGB32 to fill
+ * \retval 0 Success
+ * \retval -1 Error: Unsupported parameters
+ */
+int
+shvio_fill(
+	SHVIO *vio,
+	const struct ren_vid_surface *dst_surface,
+	uint32_t argb);
 
 #endif /* __VIO_COLORSPACE_H__ */
