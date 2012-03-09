@@ -620,6 +620,30 @@ vio6_rpf_setup(SHVIO *vio, struct shvio_entity *entity,
 	write_reg(base_addr, PRIO_ICB, RPF_CHPRI_CTRL(entity->idx));
 }
 
+typedef enum {
+	CONTROL_UNKNOWN,
+	RPF_ENABLE_VIRTIN,
+} vio6_control_t;
+
+static void
+vio6_rpf_control(SHVIO *vio, struct shvio_entity *entity,
+		 vio6_control_t cmd, uint32_t arg)
+{
+	void *base_addr = vio->uio_mmio.iomem;
+	uint32_t val;
+
+	switch (cmd) {
+	case RPF_ENABLE_VIRTIN:
+		val = read_reg(base_addr, RPF_INFMT(entity->idx));
+		val |= FMT_VIR;
+		write_reg(base_addr, val, RPF_INFMT(entity->idx));
+		write_reg(base_addr, arg, RPF_VRTCOL_SET(entity->idx));
+		break;
+	default:
+		break;
+	}
+}
+
 static inline void rpfact(struct shvio_entity *entity, uint32_t *val)
 {
 	int i;
@@ -809,6 +833,49 @@ vio6_lock(SHVIO *vio, int func)
 }
 
 static int
+vio6_fill(
+	SHVIO *vio,
+	const struct ren_vid_surface *dst,
+	uint32_t argb)
+{
+	void *base_addr;
+	struct shvio_entity *ent_src, *ent_sink;
+	struct ren_vid_surface vsrc = *dst;
+	int ret;
+
+	if (!format_supported(dst->format)) {
+		debug_info("ERR: Invalid surface format!");
+		return -1;
+	}
+
+	ent_src = vio6_lock(vio, SHVIO_FUNC_SRC);
+	ent_sink = vio6_lock(vio, SHVIO_FUNC_SINK);
+
+	if ((ent_src == NULL) || (ent_sink == NULL)) {
+		debug_info("ERR: No entity unavailable!");
+		goto fail_lock_entities;
+	}
+
+	vio6_reset(vio);
+	ret = vio6_link(vio, ent_src, ent_sink, 0);	/* make a link from src to sink */
+	if (ret < 0) {
+		debug_info("ERR: cannot make a link from src to sink");
+		goto fail_link_entities;
+	}
+	vsrc.format = REN_ARGB32;
+	vio6_rpf_setup(vio, ent_src, &vsrc, dst);
+	vio6_rpf_control(vio, ent_src, RPF_ENABLE_VIRTIN, argb);
+	vio6_wpf_setup(vio, ent_sink, dst, dst);
+
+	return 0;
+fail_link_entities:
+fail_lock_entities:
+	while (vio->locked_entities != NULL)
+		vio6_unlock(vio, vio->locked_entities);
+	return -1;
+}
+
+static int
 vio6_setup(
 	SHVIO *vio,
 	const struct ren_vid_surface *src,
@@ -926,6 +993,7 @@ vio6_wait(SHVIO *vio)
 
 const struct shvio_operations vio6_ops = {
 	.setup = vio6_setup,
+	.fill = vio6_fill,
 	.set_src = vio6_set_src,
 	.set_src_phys = vio6_set_src_phys,
 	.set_dst = vio6_set_dst,

@@ -56,6 +56,7 @@
 #define FMT_WRTM_FULL_RANGE	(1 << 9)
 #define FMT_WRTM_BT709		(1 << 10)
 #define FMT_PXA_DPR		(1 << 23)
+#define FMT_VIR			(1 << 28)
 
 #define RPF_DSWAP(_n)		\
 	(0x030c + ((_n) * 0x0100))	/* data swap setting */
