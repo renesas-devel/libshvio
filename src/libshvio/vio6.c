@@ -174,7 +174,7 @@ static const struct vio_format_info vio_fmts[] = {
 	{ REN_RGB565,	FMT_RGB565,	0xe },
 	{ REN_RGB24,	FMT_RGB888,	0xf },
 	{ REN_BGR24,	FMT_BGR888,	0xf },
-	{ REN_RGB32,	FMT_RGBX888,	0xf },
+	{ REN_RGB32,	FMT_RGBX888,	0xc },
 	{ REN_ARGB32,	FMT_ARGB8888,	0xc },
 };
 
