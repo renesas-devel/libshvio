@@ -48,7 +48,7 @@ typedef enum {
 	REN_RGB565,  /**< Packed RGB565 */
 	REN_RGB24,   /**< Packed RGB888 */
 	REN_BGR24,   /**< Packed BGR888 */
-	REN_RGB32,   /**< Packed XRGB8888 (most significant byte ignored) */
+	REN_RGB32,   /**< Packed RGBX8888 (least significant byte ignored) */
 	REN_ARGB32,  /**< Packed ARGB8888 */
 } ren_vid_format_t;
 
