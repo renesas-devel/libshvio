@@ -171,6 +171,7 @@ static const struct vio_format_info vio_fmts[] = {
 	{ REN_YV12,	FMT_YCBCR420P,	0xf },
 	{ REN_YV16,	FMT_YCBCR422P,	0xf },
 	{ REN_UYVY,	FMT_YCBCR422I,	0xf },
+	{ REN_XRGB1555,	FMT_XRGB1555,	0xe },
 	{ REN_RGB565,	FMT_RGB565,	0xe },
 	{ REN_RGB24,	FMT_RGB888,	0xf },
 	{ REN_BGR24,	FMT_BGR888,	0xf },

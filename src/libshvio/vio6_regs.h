@@ -47,6 +47,7 @@
 #define FMT_YCBCR420P		0x4c
 #define FMT_YCBCR422P		0x4b
 #define FMT_YCBCR422I		0x47
+#define FMT_XRGB1555		0x1b
 #define FMT_RGB565		0x06
 #define FMT_RGB888		0x15
 #define FMT_BGR888		0x18
