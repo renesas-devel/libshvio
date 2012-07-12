@@ -721,7 +721,18 @@ vio6_uds_setup(SHVIO *vio, struct shvio_entity *entity,
 	void *base_addr = vio->uio_mmio.iomem;
 
 	/* UDF: scale setting */
-	write_reg(base_addr, UDS_AMD | UDS_FMD | UDS_AON, UDS_CTRL(entity->idx));
+	if (src->format != REN_ARGB32) {
+		/* use bi-cubic convolution */
+		write_reg(base_addr, UDS_AMD | UDS_FMD | UDS_BC,
+			  UDS_CTRL(entity->idx));
+		write_reg(base_addr, 0xff, UDS_ALPVAL(entity->idx));
+	} else {
+		/* use bi-linear interpolation */
+		write_reg(base_addr, UDS_AMD | UDS_FMD | UDS_AON,
+			  UDS_CTRL(entity->idx));
+		write_reg(base_addr, 0xff << 8, UDS_ALPTH(entity->idx));
+		write_reg(base_addr, 0, UDS_ALPVAL(entity->idx));
+	}
 	write_reg(base_addr, 0, UDS_SCALE(entity->idx));
 	write_reg(base_addr, 0, UDS_PASS_BWIDTH(entity->idx));
 	set_scale(base_addr, entity->idx, 0, src->w, dst->w);
