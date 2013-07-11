@@ -47,6 +47,8 @@ usage (const char * progname)
 	printf ("                         Specify output filename (default: stdout)\n");
 	printf ("  -C, --output-colorspace (RGB565, RGB888, BGR888, RGBx888, NV12, YV12, NV16, YV16, UYVY)\n");
 	printf ("                         Specify output colorspace\n");
+	printf ("  -O filename, --overlay filename\n");
+	printf ("                         Specify overlayed filename (default: none)\n");
 	printf ("\nTransform options\n");
 	printf ("  Note that the VIO does not support combined rotation and scaling.\n");
 	printf ("  -S, --output-size      Set the output image size (qcif, cif, qvga, vga, d1, 720p)\n");
@@ -77,6 +79,7 @@ static const struct sizes_t sizes[] = {
 	{ "QVGA", 320,  240 },
 	{ "VGA",  640,  480 },
 	{ "D1",   720,  480 },
+	{ "WVGA", 800, 450 },
 	{ "720p", 1280, 720 },
 };
 
@@ -245,14 +248,14 @@ int main (int argc, char * argv[])
 	UIOMux * uiomux;
 	uiomux_resource_t uiores;
 
-	char * infilename = NULL, * outfilename = NULL;
-	FILE * infile, * outfile = NULL;
+	char * infilename[2] = {NULL, NULL}, * outfilename = NULL;
+	FILE * infile[2], * outfile = NULL;
 	size_t nread;
-	size_t input_size, output_size;
+	size_t input_size[2], output_size;
 	SHVIO *vio;
-	struct ren_vid_surface src;
+	struct ren_vid_surface src[2];
 	struct ren_vid_surface dst;
-	void *inbuf, *outbuf;
+	void *inbuf[2], *outbuf;
 	int ret;
 	int frameno=0;
 
@@ -264,13 +267,14 @@ int main (int argc, char * argv[])
 	int error = 0;
 
 	int c;
-	char * optstring = "hvo:c:s:C:S:f:u:l";
+	char * optstring = "hvo:O:c:s:C:S:f:u:l";
 
 #ifdef HAVE_GETOPT_LONG
 	static struct option long_options[] = {
 		{"help", no_argument, 0, 'h'},
 		{"version", no_argument, 0, 'v'},
 		{"output", required_argument, 0, 'o'},
+		{"overlay", required_argument, 0, 'O'},
 		{"input-colorspace", required_argument, 0, 'c'},
 		{"input-size", required_argument, 0, 's'},
 		{"output-colorspace", required_argument, 0, 'C'},
@@ -300,14 +304,16 @@ int main (int argc, char * argv[])
 	ICB *icbr, *icbw;
 #endif /* defined(USE_MERAM_RA) || defined(USE_MERAM_WB) */
 
-	src.w = -1;
-	src.h = -1;
+	src[0].w = -1;
+	src[0].h = -1;
 	dst.w = -1;
 	dst.h = -1;
-	src.format = REN_UNKNOWN;
+	src[0].format = REN_UNKNOWN;
 	dst.format = REN_UNKNOWN;
-	src.bpitchy = src.bpitchc = src.bpitcha = 0;
+	src[0].bpitchy = src[0].bpitchc = src[0].bpitcha = 0;
 	dst.bpitchy = dst.bpitchc = dst.bpitcha = 0;
+
+	memcpy((void *)&src[1], (void *)&src[0], sizeof(src[0]));
 
 	progname = argv[0];
 
@@ -338,11 +344,14 @@ int main (int argc, char * argv[])
 		case 'o': /* output */
 			outfilename = optarg;
 			break;
+		case 'O': /* ovalery */
+			infilename[1] = optarg;
+			break;
 		case 'c': /* input colorspace */
-			set_colorspace (optarg, &src.format);
+			set_colorspace (optarg, &src[0].format);
 			break;
 		case 's': /* input size */
-			set_size (optarg, &src.w, &src.h);
+			set_size (optarg, &src[0].w, &src[0].h);
 			break;
 		case 'C': /* output colorspace */
 			set_colorspace (optarg, &dst.format);
@@ -394,48 +403,55 @@ int main (int argc, char * argv[])
 		goto exit_err;
 	}
 
-	infilename = argv[optind++];
+	infilename[0] = argv[optind++];
 
 	if (optind < argc) {
 		outfilename = argv[optind++];
 	}
 
-	printf ("Input file: %s\n", infilename);
+	printf ("Input file: %s\n", infilename[0]);
+	if (infilename[1] != NULL)
+		printf ("Overlay file: %s\n", infilename[1]);
 	printf ("Output file: %s\n", outfilename);
 
-	guess_colorspace (infilename, &src.format);
+	guess_colorspace (infilename[0], &src[0].format);
+	if (infilename[1])
+		guess_colorspace (infilename[1], &src[1].format);
 	guess_colorspace (outfilename, &dst.format);
 	/* If the output colorspace isn't given and can't be guessed, then default to
 	 * the input colorspace (ie. no colorspace conversion) */
 	if (dst.format == REN_UNKNOWN)
-		dst.format = src.format;
+		dst.format = src[0].format;
 
-	guess_size (infilename, src.format, &src.w, &src.h);
+	guess_size (infilename[0], src[0].format, &src[0].w, &src[0].h);
 	if (rotation & 0xF) {
 		/* Swap width/height for rotation */
-		dst.w = src.h;
-		dst.h = src.w;
+		dst.w = src[0].h;
+		dst.h = src[0].w;
 	} else if (dst.w == -1 && dst.h == -1) {
 		/* If the output size isn't given and can't be guessed, then default to
 		 * the input size (ie. no rescaling) */
-		dst.w = src.w;
-		dst.h = src.h;
+		dst.w = src[0].w;
+		dst.h = src[0].h;
 	}
+	if (infilename[1])
+		guess_size (infilename[1], src[1].format, &src[1].w, &src[1].h);
 
 	/* Setup memory pitch */
-	src.pitch = src.w;
+	src[0].pitch = src[0].w;
+	src[1].pitch = src[1].w;
 	dst.pitch = dst.w;
 
 	/* Check that all parameters are set */
-	if (src.format == REN_UNKNOWN) {
+	if (src[0].format == REN_UNKNOWN) {
 		fprintf (stderr, "ERROR: Input colorspace unspecified\n");
 		error = 1;
 	}
-	if (src.w == -1) {
+	if (src[0].w == -1) {
 		fprintf (stderr, "ERROR: Input width unspecified\n");
 		error = 1;
 	}
-	if (src.h == -1) {
+	if (src[0].h == -1) {
 		fprintf (stderr, "ERROR: Input height unspecified\n");
 		error = 1;
 	}
@@ -455,13 +471,15 @@ int main (int argc, char * argv[])
 
 	if (error) goto exit_err;
 
-	printf ("Input colorspace:\t%s\n", show_colorspace (src.format));
-	printf ("Input size:\t\t%dx%d %s\n", src.w, src.h, show_size (src.w, src.h));
+	printf ("Input colorspace:\t%s\n", show_colorspace (src[0].format));
+	printf ("Input size:\t\t%dx%d %s\n", src[0].w, src[0].h, show_size (src[0].w, src[0].h));
 	printf ("Output colorspace:\t%s\n", show_colorspace (dst.format));
 	printf ("Output size:\t\t%dx%d %s\n", dst.w, dst.h, show_size (dst.w, dst.h));
 	printf ("Rotation:\t\t%s\n", show_rotation (rotation));
 
-	input_size = imgsize (src.format, src.w, src.h);
+	input_size[0] = imgsize (src[0].format, src[0].w, src[0].h);
+	if (infilename[1] != NULL)
+		input_size[1] = imgsize (src[1].format, src[1].w, src[1].h);
 	output_size = imgsize (dst.format, dst.w, dst.h);
 
 	if (viodev) {
@@ -474,17 +492,32 @@ int main (int argc, char * argv[])
 	}
 
 	/* Set up memory buffers */
-	src.py = inbuf = uiomux_malloc (uiomux, uiores, input_size, 32);
-	if (src.format == REN_RGB565) {
-		src.pc = 0;
-	} else if (src.format == REN_YV12) {
-		src.pc2 = src.py + (src.w * src.h);	/* Cr(V) */
-		src.pc = src.pc2 + (src.w * src.h) / 4;	/* Cb(U) */
-	} else if (src.format == REN_YV16) {
-		src.pc2 = src.py + (src.w * src.h);	/* Cr(V) */
-		src.pc = src.pc2 + (src.w * src.h) / 2;	/* Cb(U) */
+	src[0].py = inbuf[0] = uiomux_malloc (uiomux, uiores, input_size[0], 32);
+	if (src[0].format == REN_RGB565) {
+		src[0].pc = 0;
+	} else if (src[0].format == REN_YV12) {
+		src[0].pc2 = src[0].py + (src[0].w * src[0].h);	/* Cr(V) */
+		src[0].pc = src[0].pc2 + (src[0].w * src[0].h) / 4;	/* Cb(U) */
+	} else if (src[0].format == REN_YV16) {
+		src[0].pc2 = src[0].py + (src[0].w * src[0].h);	/* Cr(V) */
+		src[0].pc = src[0].pc2 + (src[0].w * src[0].h) / 2;	/* Cb(U) */
 	} else {
-		src.pc = src.py + (src.w * src.h);	/* CbCr(UV) */
+		src[0].pc = src[0].py + (src[0].w * src[0].h);	/* CbCr(UV) */
+	}
+
+	if (infilename[1] != NULL) {
+		src[1].py = inbuf[1] = uiomux_malloc (uiomux, uiores, input_size[1], 32);
+		if (src[1].format == REN_RGB565) {
+			src[1].pc = 0;
+		} else if (src[1].format == REN_YV12) {
+			src[1].pc2 = src[1].py + (src[1].w * src[1].h);	/* Cr(V) */
+			src[1].pc = src[1].pc2 + (src[1].w * src[1].h) / 4;	/* Cb(U) */
+		} else if (src[1].format == REN_YV16) {
+			src[1].pc2 = src[1].py + (src[1].w * src[1].h);	/* Cr(V) */
+			src[1].pc = src[1].pc2 + (src[1].w * src[1].h) / 2;	/* Cb(U) */
+		} else {
+			src[1].pc = src[1].py + (src[1].w * src[1].h);	/* CbCr(UV) */
+		}
 	}
 
 	dst.py = outbuf = uiomux_malloc (uiomux, uiores, output_size, 32);
@@ -509,18 +542,18 @@ int main (int argc, char * argv[])
 
 #if defined(USE_MERAM_RA)
 	/* calcurate byte-pitch */
-	src.bpitchy = size_y(src.format, src.pitch, 0);
+	src[0].bpitchy = size_y(src[0].format, src[0].pitch, 0);
 
 	/* set up read-ahead cache for input */
 	icbr = meram_lock_icb(meram, 0);
 	val = (3 << 24) |		/* KRBNM: ((3+1) << 1) = 8 lines */
 		((16 - 1) << 16);	/* BNM: 16 = KRBNM * 2 lines */
-	ADJUST_PITCH(sz, src.bpitchy);
+	ADJUST_PITCH(sz, src[0].bpitchy);
 	sz *= 16;			/* 16 lines */
-	if (src.format == REN_NV12) {
+	if (src[0].format == REN_NV12) {
 		val |= 2 << 12;	/* CPL: YCbCr420 */
 		sz = sz * 3 / 2;
-	} else if (src.format == REN_NV16) {
+	} else if (src[0].format == REN_NV16) {
 		val |= 3 << 12;	/* CPL: YCbCr422 */
 		sz = sz * 2;
 	}
@@ -537,25 +570,25 @@ int main (int argc, char * argv[])
 		1;			/* MD: read buffer mode */
 	meram_write_icb(meram, icbr, MExxCTRL, val);
 
-	val = ((src.h - 1) << 16) |	/* YSZM1 */
-		(src.bpitchy - 1);	/* XSZM1 */
+	val = ((src[0].h - 1) << 16) |	/* YSZM1 */
+		(src[0].bpitchy - 1);	/* XSZM1 */
 	meram_write_icb(meram, icbr, MExxBSIZE, val);
-	val = ALIGN16(src.bpitchy);	/* SBSIZE: 16 bytes aligned */
+	val = ALIGN16(src[0].bpitchy);	/* SBSIZE: 16 bytes aligned */
 	meram_write_icb(meram, icbr, MExxSBSIZE, val);
 
-	ADJUST_PITCH(src.bpitchy, src.bpitchy);
-	src.bpitchc = src.bpitcha = src.bpitchy;
+	ADJUST_PITCH(src[0].bpitchy, src[0].bpitchy);
+	src[0].bpitchc = src[0].bpitcha = src[0].bpitchy;
 
-	val = uiomux_all_virt_to_phys(src.py);
+	val = uiomux_all_virt_to_phys(src[0].py);
 	meram_write_icb(meram, icbr, MExxSSARA, val);
 
-	src.py = (void *)meram_get_icb_address(meram, icbr, 0);
-	uiomux_register(src.py, (unsigned long)src.py, 8 << 20);
-	if (is_ycbcr(src.format)) {
-		val = uiomux_all_virt_to_phys(src.pc);
+	src[0].py = (void *)meram_get_icb_address(meram, icbr, 0);
+	uiomux_register(src[0].py, (unsigned long)src[0].py, 8 << 20);
+	if (is_ycbcr(src[0].format)) {
+		val = uiomux_all_virt_to_phys(src[0].pc);
 		meram_write_icb(meram, icbr, MExxSSARB, val);
-		src.pc = (void *)meram_get_icb_address(meram, icbr, 1);
-		uiomux_register(src.pc, (unsigned long)src.pc, 8 << 20);
+		src[0].pc = (void *)meram_get_icb_address(meram, icbr, 1);
+		uiomux_register(src[0].pc, (unsigned long)src[0].pc, 8 << 20);
 	} else {
 		meram_write_icb(meram, icbr, MExxSSARB, 0);
 	}
@@ -614,13 +647,22 @@ int main (int argc, char * argv[])
 	}
 #endif /* defined(USE_MERAM_WB) */
 
-	if (strcmp (infilename, "-") == 0) {
-		infile = stdin;
+	if (strcmp (infilename[0], "-") == 0) {
+		infile[0] = stdin;
 	} else {
-		infile = fopen (infilename, "rb");
-		if (infile == NULL) {
+		infile[0] = fopen (infilename[0], "rb");
+		if (infile[0] == NULL) {
 			fprintf (stderr, "%s: unable to open input file %s\n",
-				 progname, infilename);
+				 progname, infilename[0]);
+			goto exit_err;
+		}
+	}
+
+	if (infilename[1] != NULL) {
+		infile[1] = fopen (infilename[1], "rb");
+		if (infile[1] == NULL) {
+			fprintf (stderr, "%s: unable to open input file %s\n",
+				 progname, infilename[1]);
 			goto exit_err;
 		}
 	}
@@ -654,19 +696,35 @@ int main (int argc, char * argv[])
 #endif
 
 		/* Read input */
-		if ((nread = fread (inbuf, 1, input_size, infile)) != input_size) {
-			if (nread == 0 && feof (infile)) {
+		if ((nread = fread (inbuf[0], 1, input_size[0], infile[0])) != input_size[0]) {
+			if (nread == 0 && feof (infile[0])) {
 				break;
 			} else {
 				fprintf (stderr, "%s: error reading input file %s\n",
-					 progname, infilename);
+					 progname, infilename[0]);
 			}
 		}
 
-		if (rotation) {
-			ret = shvio_rotate(vio, &src, &dst, rotation);
+		if (infilename[1] != NULL) {
+			if ((nread = fread (inbuf[1], 1, input_size[1], infile[1])) != input_size[1]) {
+				if (nread == 0 && feof (infile[1])) {
+					break;
+				} else {
+					fprintf (stderr, "%s: error reading input file %s\n",
+						 progname, infilename[1]);
+				}
+			}
+
+			printf("invoke shvio_start_blend()...\n");
+			ret = shvio_start_blend(vio, &src[0], &src[1], NULL, &dst);
+			printf("shvio_start_blend() = %d\n", ret);
+			ret = shvio_wait(vio);
 		} else {
-			ret = shvio_resize(vio, &src, &dst);
+			if (rotation) {
+				ret = shvio_rotate(vio, &src[0], &dst, rotation);
+			} else {
+				ret = shvio_resize(vio, &src[0], &dst);
+			}
 		}
 
 #if defined(USE_MERAM_WB)
@@ -693,9 +751,9 @@ int main (int argc, char * argv[])
 
 #if defined(USE_MERAM_RA)
 	/* finialize the read-ahead cache */
-	uiomux_unregister(src.py);
-	if (is_ycbcr(src.format))
-		uiomux_unregister(src.pc);
+	uiomux_unregister(src[0].py);
+	if (is_ycbcr(src[0].format))
+		uiomux_unregister(src[0].pc);
 	meram_free_icb_memory(meram, icbr);
 	meram_unlock_icb(meram, icbr);
 #endif
@@ -711,11 +769,15 @@ int main (int argc, char * argv[])
 	meram_close(meram);
 #endif
 
-	uiomux_free (uiomux, uiores, src.py, input_size);
+	uiomux_free (uiomux, uiores, src[0].py, input_size[0]);
+	if (infilename[1] != NULL)
+		uiomux_free (uiomux, uiores, src[1].py, input_size[1]);
 	uiomux_free (uiomux, uiores, dst.py, output_size);
 	uiomux_close (uiomux);
 
-	if (infile != stdin) fclose (infile);
+	if (infile[0] != stdin) fclose (infile[0]);
+	if (infilename[1] != NULL)
+		fclose (infile[1]);
 
 	if (outfile == stdout) {
 		fflush (stdout);
