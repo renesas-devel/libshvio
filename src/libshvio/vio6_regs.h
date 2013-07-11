@@ -177,9 +177,9 @@
 #define BRU_VIRRPF_LOC		0x2a08	/* start/stop */
 #define BRU_VIRRPF_COL		0x2a0c	/* start/stop */
 #define BRU_CTRL(_m)	\
-	(0x2a10 + ((_n) * 0x0008))	/* */
+	(0x2a10 + ((_m) * 0x0008))	/* */
 #define BRU_BLD(_m)	\
-	(0x2a14 + ((_n) * 0x0008))	/* */
+	(0x2a14 + ((_m) * 0x0008))	/* */
 #define BRU_ROP			0x2a30	/* start/stop */
 
 #endif /* __SHVIO6_REGS_H__ */

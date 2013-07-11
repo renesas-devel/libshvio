@@ -139,6 +139,7 @@ static void copy_plane(void *dst, void *src, int bpp, int h, int len, int dst_bp
 {
 	int y;
 	if (src && dst != src) {
+		printf("MEMCPY a surface\n");
 		for (y=0; y<h; y++) {
 			memcpy(dst, src, len * bpp);
 			src += src_bpitch;
@@ -239,6 +240,7 @@ shvio_setup(
 		debug_info("ERR: src is not accessible by hardware");
 		return -1;
 	}
+
 	copy_surface(src, src_surface);
 
 	/* destination - use a buffer the hardware can access */
@@ -466,3 +468,251 @@ fail_get_hw_surface_dst:
 
 	return -1;
 }
+
+shvio_start_blend(
+	SHVIO *vio,
+	const struct ren_vid_surface *src0,
+	const struct ren_vid_surface *src1,
+	const struct ren_vid_surface *src2,
+	const struct ren_vid_surface *dst)
+{
+	uiomux_lock (vio->uiomux, vio->uiores);
+
+	if (vio->ops.start_blend(vio, src0, src1, src2, dst) < 0)
+		goto fail_start_blend;
+
+fail_start_blend:
+	uiomux_unlock(vio->uiomux, vio->uiores);
+
+	return 0;
+}
+
+#if 0
+int
+shvio_start_blend(
+	SHVIO *vio,
+	const struct shvio_surface *src1_in,
+	const struct shvio_surface *src2_in,
+	const struct shvio_surface *src3_in,
+	const struct shvio_surface *src4_in,
+	const struct shvio_surface *dest_in)
+{
+	uint32_t start_reg;
+	uint32_t control_reg;
+	const struct shvio_surface *src_check;
+	uint32_t bblcr1 = 0;
+	uint32_t bblcr0 = 0;
+	struct shvio_surface local_src1;
+	struct shvio_surface local_src2;
+	struct shvio_surface local_src3;
+	struct shvio_surface local_dest;
+	struct shvio_surface *src1 = NULL;
+	struct shvio_surface *src2 = NULL;
+	struct shvio_surface *src3 = NULL;
+	struct shvio_surface *dest = NULL;
+	void *base_addr;
+
+	debug_info("in");
+
+	if (src1_in) src1 = &local_src1;
+	if (src2_in) src2 = &local_src2;
+	if (src3_in) src3 = &local_src3;
+	if (dest_in) dest = &local_dest;
+
+	/* Check we have been passed at least an input and an output */
+	if (!vio || !src1_in || !dest_in) {
+		debug_info("ERR: Invalid input - need at least 1 src and dest");
+		return -1;
+	}
+
+	/* Check the size of the destination surface is big enough */
+	if (dest_in->s.pitch < src1_in->s.w) {
+		debug_info("ERR: Size of the destination surface is not big enough");
+		return -1;
+	}
+
+	/* Check the size of the destination surface matches the parent surface */
+	if (dest_in->s.w != src1_in->s.w || dest_in->s.h != src1_in->s.h) {
+		debug_info("ERR: Size of the destination surface does NOT match the parent surface");
+		return -1;
+	}
+
+	/* surfaces - use buffers the hardware can access */
+	if (get_hw_surface(vio, src1, src1_in) < 0) {
+		debug_info("ERR: src1 is not accessible by hardware");
+		return -1;
+	}
+	if (get_hw_surface(vio, src2, src2_in) < 0) {
+		debug_info("ERR: src2 is not accessible by hardware");
+		return -1;
+	}
+	if (get_hw_surface(vio, src3, src3_in) < 0) {
+		debug_info("ERR: src3 is not accessible by hardware");
+		return -1;
+	}
+	if (get_hw_surface(vio, dest, dest_in) < 0) {
+		debug_info("ERR: dest is not accessible by hardware");
+		return -1;
+	}
+
+	if (src1_in) copy_surface(&src1->s, &src1_in->s);
+	if (src2_in) copy_surface(&src2->s, &src2_in->s);
+	if (src3_in) copy_surface(&src3->s, &src3_in->s);
+
+	/* NOTE: All register access must be inside this lock */
+	uiomux_lock (vio->uiomux, vio->uiores);
+
+	base_addr = vio->uio_mmio.iomem;
+
+	/* Keep track of the user surfaces */
+	vio->p_src1_user = (src1_in != NULL) ? &vio->src1_user : NULL;
+	vio->p_src2_user = (src2_in != NULL) ? &vio->src2_user : NULL;
+	vio->p_src3_user = (src3_in != NULL) ? &vio->src3_user : NULL;
+	vio->p_dest_user = (dest_in != NULL) ? &vio->dest_user : NULL;
+
+	if (src1_in) vio->src1_user = *src1_in;
+	if (src2_in) vio->src2_user = *src2_in;
+	if (src3_in) vio->src3_user = *src3_in;
+	if (dest_in) vio->dest_user = *dest_in;
+
+	/* Keep track of the actual surfaces used */
+	vio->src1_hw = local_src1;
+	vio->src2_hw = local_src2;
+	vio->src3_hw = local_src3;
+	vio->dest_hw = local_dest;
+	src_check = src1;
+
+	/* Ensure src2 and src3 formats are the same type (only input 1 on the
+	   hardware has colorspace conversion */
+	if (src2 && src3) {
+		if (different_colorspace(src2->s.format, src3->s.format)) {
+			if (different_colorspace(src1->s.format, src2->s.format)) {
+				/* src2 is the odd one out, swap 1 and 2 */
+				struct shvio_surface *tmp = src2;
+				src2 = src1;
+				src1 = tmp;
+				bblcr1 = (1 << 24);
+				bblcr0 = (2 << 24);
+			} else {
+				/* src3 is the odd one out, swap 1 and 3 */
+				struct shvio_surface *tmp = src3;
+				src3 = src1;
+				src1 = tmp;
+				bblcr1 = (2 << 24);
+				bblcr0 = (5 << 24);
+			}
+		}
+	}
+
+	if (read_reg(base_addr, BSTAR)) {
+		debug_info("BEU appears to be running already...");
+	}
+
+	/* Reset */
+	write_reg(base_addr, 1, BBRSTR);
+
+	/* Wait for BEU to stop */
+	while (read_reg(base_addr, BSTAR) & 1)
+		;
+
+	/* Turn off register bank/plane access, access regs via Plane A */
+	write_reg(base_addr, 0, BRCNTR);
+	write_reg(base_addr, 0, BRCHR);
+
+	/* Default location of surfaces is (0,0) */
+	write_reg(base_addr, 0, BLOCR1);
+
+	/* Default to no byte swapping for all surfaces (YCbCr) */
+	write_reg(base_addr, 0, BSWPR);
+
+	/* Turn off transparent color comparison */
+	write_reg(base_addr, 0, BPCCR0);
+
+	/* Turn on blending */
+	write_reg(base_addr, 0, BPROCR);
+
+	/* Not using "multi-window" capability */
+	write_reg(base_addr, 0, BMWCR0);
+
+	/* Set parent surface; output to memory */
+	write_reg(base_addr, bblcr1 | BBLCR1_OUTPUT_MEM, BBLCR1);
+
+	/* Set surface order */
+	write_reg(base_addr, bblcr0, BBLCR0);
+
+	if (setup_src_surface(base_addr, 0, src1) < 0)
+		goto err;
+	if (setup_src_surface(base_addr, 1, src2) < 0)
+		goto err;
+	if (setup_src_surface(base_addr, 2, src3) < 0)
+		goto err;
+	if (setup_dst_surface(base_addr, dest) < 0)
+		goto err;
+
+	if (src2) {
+		if (different_colorspace(src1->s.format, src2->s.format)) {
+			uint32_t bsifr = read_reg(base_addr, BSIFR + SRC1_BASE);
+			debug_info("Setting BSIFR1 IN1TE bit");
+			bsifr  |= (BSIFR1_IN1TE | BSIFR1_IN1TM);
+			write_reg(base_addr, bsifr, BSIFR + SRC1_BASE);
+		}
+
+		src_check = src2;
+	}
+
+	/* Is input 1 colorspace (after the colorspace converter) RGB? */
+	if (is_rgb(src_check->s.format)) {
+		uint32_t bpkfr = read_reg(base_addr, BPKFR);
+		debug_info("Setting BPKFR RY bit");
+		bpkfr |= BPKFR_RY;
+		write_reg(base_addr, bpkfr, BPKFR);
+	}
+
+	/* Is the output colorspace different to input? */
+	if (different_colorspace(dest->s.format, src_check->s.format)) {
+		uint32_t bpkfr = read_reg(base_addr, BPKFR);
+		debug_info("Setting BPKFR TE bit");
+		bpkfr |= (BPKFR_TM2 | BPKFR_TM | BPKFR_DITH1 | BPKFR_TE);
+		write_reg(base_addr, bpkfr, BPKFR);
+	}
+
+	/* enable interrupt */
+	write_reg(base_addr, 1, BEIER);
+
+	/* start operation */
+	start_reg = BESTR_BEIVK;
+	if (src1) start_reg |= BESTR_CHON1;
+	if (src2) start_reg |= BESTR_CHON2;
+	if (src3) start_reg |= BESTR_CHON3;
+	write_reg(base_addr, start_reg, BESTR);
+
+	debug_info("out");
+
+	return 0;
+
+err:
+	debug_info("ERR: error detected");
+	uiomux_unlock(vio->uiomux, vio->uiores);
+	return -1;
+}
+
+int
+shvio_blend(
+	SHVIO *vio,
+	const struct shvio_surface *src1,
+	const struct shvio_surface *src2,
+	const struct shvio_surface *src3,
+	const struct shvio_surface *src4,
+	const struct shvio_surface *dest)
+{
+	int ret = 0;
+
+	ret = shvio_start_blend(vio, src1, src2, src3, src4, dest);
+
+	if (ret == 0)
+		shvio_wait(vio);
+
+	return ret;
+}
+#endif
+

@@ -359,4 +359,45 @@ shvio_fill(
 	const struct ren_vid_surface *dst_surface,
 	uint32_t argb);
 
+/**
+ * Query a list of VIO available on this platform.
+ * Returns the references to the names of available VIO.
+ * If you need to modify the returned array of strings, please copy the
+ * array and strings before you do so. The result is shared by all callers
+ * of this API in the same process context.
+ * \param names List of VIO available. The array is terminated with NULL.
+ * \param count Number of VIO.
+ * \retval 0 on success; -1 on failure.
+ */
+int shvio_list_vio(char ***names, int *count);
+
+/** Start a surface blend
+ * \param beu VIO handle
+ * \param src1 Parent surface. The output will be this size.
+ * \param src2 Overlay surface. Can be NULL, if no overlay required.
+ * \param src3 Overlay surface. Can be NULL, if no overlay required.
+ * \param src4 Overlay surface. Can be NULL, if no overlay required.
+ * \param dest Output surface.
+ * \retval 0 Success
+ * \retval -1 Error
+ */
+int
+shvio_start_blend(
+	SHVIO *vio,
+	const struct ren_vid_surface *src1,
+	const struct ren_vid_surface *src2,
+	const struct ren_vid_surface *src3,
+	const struct ren_vid_surface *dst);
+
+/** Perform a surface blend.
+ * See shvio_start_blend for parameter definitions.
+ */
+int
+shvio_blend(
+	SHVIO *vio,
+	const struct ren_vid_surface *src1,
+	const struct ren_vid_surface *src2,
+	const struct ren_vid_surface *src3,
+	const struct ren_vid_surface *dst);
+
 #endif /* __VIO_COLORSPACE_H__ */

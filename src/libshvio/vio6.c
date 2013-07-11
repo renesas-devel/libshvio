@@ -20,7 +20,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-
+#define DEBUG 2
 #include <stdint.h>
 #include <string.h>
 #include <stdio.h>
@@ -364,9 +364,14 @@ static void set_scale(void *base_addr, int id, int vertical,
 
 	/* calculate FRAC and MANT */
 	if (size_in != size_out) {
+#if 1
 		fixpoint = (4096 * size_in) / size_out;
 		mant = fixpoint / 4096;
 		frac = fixpoint - (mant * 4096);
+#else
+		mant = fixpoint;
+		frac = 4096 * (size_in - 1) / (size_out - 1) - (mant * 4096);
+#endif
 	} else {
 		mant = 1;
 		frac = 0;
@@ -681,6 +686,8 @@ vio6_wpf_setup(SHVIO *vio, struct shvio_entity *entity,
 
 	val = 0;
 	rpfact(entity, &val);
+	if (val & 0x01)
+		val += 1;
 	write_reg(base_addr, val, WPF_SRCRPF(entity->idx));
 	write_reg(base_addr, 0, WPF_HSZCLIP(entity->idx));
 	write_reg(base_addr, 0, WPF_VSZCLIP(entity->idx));
@@ -743,6 +750,52 @@ vio6_uds_setup(SHVIO *vio, struct shvio_entity *entity,
 }
 
 static void
+vio6_bru_setup(SHVIO *vio, struct shvio_entity *entity,
+	       const struct ren_vid_surface *src0,
+	       const struct ren_vid_surface *src1,
+	       const struct ren_vid_surface *src2,
+	       const struct ren_vid_surface *dst)
+{
+	void *base_addr = vio->uio_mmio.iomem;
+
+	write_reg(base_addr, 0, BRU_INCTRL);
+#if 0
+	/* virtual surface */
+	write_reg(base_addr, ((src->w / 2) << 16) | (src->h / 2), BRU_VIRRPF_SIZE);
+	write_reg(base_addr, ((src->w / 2) << 16) | (src->h / 2), BRU_VIRRPF_LOC);
+	write_reg(base_addr, 0x80800000, BRU_VIRRPF_COL);
+	write_reg(base_addr, 1 << 31 | 4 << 20 | 0 << 16 | 0 << 4 | 0, BRU_CTRL(0));
+#endif
+	/* SRC for Unit A = BRUin1, DST for Unit A = BRUin0 */
+	write_reg(base_addr, 1 << 31 | 0 << 20 | 1 << 16 , BRU_CTRL(0));
+
+	/* Unit B never used */
+	write_reg(base_addr, 0, BRU_ROP);
+	write_reg(base_addr, 0, BRU_CTRL(1));
+
+	/* SRC for Unit C = BRUin2 */
+	if (src2) {
+		write_reg(base_addr, 1 << 31 | 2 << 16, BRU_CTRL(2));
+	} else {
+		write_reg(base_addr, 0, BRU_CTRL(2));
+	}
+
+#if 0
+	/* SRC for Unit D = BRUin3 */
+	if (src2) {
+		write_reg(base_addr, 1 << 31 | 3 << 16, BRU_CTRL(3));
+	} else {
+		write_reg(base_addr, 0, BRU_CTRL(3));
+	}
+#endif
+
+	write_reg(base_addr, (3 << 28) | (2 << 24), BRU_BLD(0));
+	write_reg(base_addr, (3 << 28) | (2 << 24), BRU_BLD(1));
+	write_reg(base_addr, (3 << 28) | (2 << 24), BRU_BLD(2));
+	write_reg(base_addr, (3 << 28) | (2 << 24), BRU_BLD(3));
+}
+
+static void
 vio6_unlink(SHVIO *vio, struct shvio_entity *entity)
 {
 	void *base_addr = vio->uio_mmio.iomem;
@@ -791,7 +844,7 @@ vio6_link(SHVIO *vio, struct shvio_entity *src, struct shvio_entity *sink, int s
 
 	val = read_reg(base_addr, DPR_CTRL(src->dpr_ctrl));
 	val &= ~(0x1f << src->dpr_shift);
-	val |= sink->dpr_target << src->dpr_shift;
+	val |= (sink->dpr_target + sinkpad) << src->dpr_shift;
 	write_reg(base_addr, val, DPR_CTRL(src->dpr_ctrl));
 
 	sink->pad_in[sinkpad] = src;
@@ -917,8 +970,7 @@ vio6_setup(
 	ent_scale = vio6_lock(vio, SHVIO_FUNC_SCALE);
 	ent_sink = vio6_lock(vio, SHVIO_FUNC_SINK);
 
-	if ((ent_src == NULL) ||
-	    (ent_scale == NULL) || (ent_sink == NULL)) {
+	if ((ent_src == NULL) || (ent_scale == NULL) || (ent_sink == NULL)) {
 		debug_info("ERR: No entity unavailable!");
 		goto fail_lock_entities;
 	}
@@ -1004,6 +1056,98 @@ vio6_wait(SHVIO *vio)
 	return complete;
 }
 
+static int
+vio6_start_blend(
+	SHVIO *vio,
+	const struct ren_vid_surface *src0,
+	const struct ren_vid_surface *src1,
+	const struct ren_vid_surface *src2,
+	const struct ren_vid_surface *dst)
+{
+	uint32_t val;
+	void *base_addr;
+	struct shvio_entity *ent_src0, *ent_blend, *ent_sink;
+	int ret;
+
+	if (!format_supported(src0->format) ||
+	    (src1 && !format_supported(src1->format)) ||
+	    (src2 && !format_supported(src2->format)) ||
+	    !format_supported(dst->format)) {
+		debug_info("ERR: Invalid surface format!");
+		return -1;
+	}
+
+	/* unlock all entities once */
+	while (vio->locked_entities != NULL)
+		vio6_unlock(vio, vio->locked_entities);
+
+	ent_src0 = vio6_lock(vio, SHVIO_FUNC_SRC);
+	ent_blend = vio6_lock(vio, SHVIO_FUNC_BLEND);
+	ent_sink = vio6_lock(vio, SHVIO_FUNC_SINK);
+
+	if ((ent_src0 == NULL) || (ent_sink == NULL) || (ent_blend == NULL)) {
+		debug_info("ERR: No entity unavailable!");
+		goto fail_lock_entities;
+	}
+
+	vio6_reset(vio);
+	ret = vio6_link(vio, ent_src0, ent_blend, 0);	/* make a link from src to scale */
+	if (ret < 0) {
+		debug_info("ERR: cannot make a link from src to scale");
+		goto fail_link_entities;
+	}
+	vio6_rpf_setup(vio, ent_src0, src0, src0);	/* color */
+
+	if (src1) {
+		struct shvio_entity *ent_src1;
+		ent_src1 = vio6_lock(vio, SHVIO_FUNC_SRC);
+		if (ent_src1 == NULL) {
+			debug_info("ERR: No source entity unavailable!");
+			goto fail_lock_entities;
+		}
+
+		ret = vio6_link(vio, ent_src1, ent_blend, 1);	/* make a link from src to scale */
+		if (ret < 0) {
+			debug_info("ERR: cannot make a link from src to scale");
+			goto fail_link_entities;
+		}
+		vio6_rpf_setup(vio, ent_src1, src1, src1);	/* color */
+	}
+
+	if (src2) {
+		struct shvio_entity *ent_src2;
+		ent_src2 = vio6_lock(vio, SHVIO_FUNC_SRC);
+		if (ent_src2 == NULL) {
+			debug_info("ERR: No source entity unavailable!");
+			goto fail_lock_entities;
+		}
+
+		ret = vio6_link(vio, ent_src2, ent_blend, 2);	/* make a link from src to scale */
+		if (ret < 0) {
+			debug_info("ERR: cannot make a link from src to scale");
+			goto fail_link_entities;
+		}
+		vio6_rpf_setup(vio, ent_src2, src2, src2);	/* color */
+	}
+
+	vio6_bru_setup(vio, ent_blend, src0, src1, src2, dst);	/* width, height */
+
+	ret = vio6_link(vio, ent_blend, ent_sink, 0);	/* make a link from scale to sink */
+	if (ret < 0) {
+		debug_info("ERR: cannot make a link from scale to sink");
+		goto fail_link_entities;
+	}
+	vio6_wpf_setup(vio, ent_sink, src0, dst);	/* color */
+
+	vio6_start(vio);
+	return 0;
+fail_link_entities:
+fail_lock_entities:
+	while (vio->locked_entities != NULL)
+		vio6_unlock(vio, vio->locked_entities);
+	return -1;
+}
+
 const struct shvio_operations vio6_ops = {
 	.setup = vio6_setup,
 	.fill = vio6_fill,
@@ -1013,4 +1157,5 @@ const struct shvio_operations vio6_ops = {
 	.set_dst_phys = vio6_set_dst_phys,
 	.start = vio6_start,
 	.wait = vio6_wait,
+	.start_blend = vio6_start_blend,
 };
