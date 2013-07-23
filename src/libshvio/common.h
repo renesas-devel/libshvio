@@ -54,7 +54,8 @@ struct shvio_operations {
 	void (*start)(SHVIO *vio);
 	void (*start_bundle)(SHVIO *vio, int bundle_lines);
 	int (*wait)(SHVIO *vio);
-	int (*start_blend)(SHVIO *vio, const struct ren_vid_surface *src0_surface,
+	int (*setup_blend)(SHVIO *vio,
+			   const struct ren_vid_surface *src0_surface,
 			   const struct ren_vid_surface *src1_surface,
 			   const struct ren_vid_surface *src2_surface,
 			   const struct ren_vid_surface *dst_surface);

@@ -468,8 +468,8 @@ fail_get_hw_surface_dst:
 
 	return -1;
 }
-
-shvio_start_blend(
+int
+shvio_setup_blend(
 	SHVIO *vio,
 	const struct ren_vid_surface *src0,
 	const struct ren_vid_surface *src1,
@@ -478,10 +478,10 @@ shvio_start_blend(
 {
 	uiomux_lock (vio->uiomux, vio->uiores);
 
-	if (vio->ops.start_blend(vio, src0, src1, src2, dst) < 0)
-		goto fail_start_blend;
+	if (vio->ops.setup_blend(vio, src0, src1, src2, dst) < 0)
+		goto fail_setup_blend;
 
-fail_start_blend:
+fail_setup_blend:
 	uiomux_unlock(vio->uiomux, vio->uiores);
 
 	return 0;
@@ -709,8 +709,10 @@ shvio_blend(
 
 	ret = shvio_start_blend(vio, src1, src2, src3, src4, dest);
 
-	if (ret == 0)
+	if (ret == 0) {
+		shvio_start(vio)
 		shvio_wait(vio);
+	}
 
 	return ret;
 }

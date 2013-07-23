@@ -380,7 +380,7 @@ shvio_fill(
 int shvio_list_vio(char ***names, int *count);
 
 /** Start a surface blend
- * \param beu VIO handle
+ * \param vio VIO handle
  * \param src1 Parent surface. The output will be this size.
  * \param src2 Overlay surface. Can be NULL, if no overlay required.
  * \param src3 Overlay surface. Can be NULL, if no overlay required.
@@ -390,7 +390,7 @@ int shvio_list_vio(char ***names, int *count);
  * \retval -1 Error
  */
 int
-shvio_start_blend(
+shvio_setup_blend(
 	SHVIO *vio,
 	const struct ren_vid_surface *src1,
 	const struct ren_vid_surface *src2,

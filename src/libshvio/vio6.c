@@ -1059,7 +1059,7 @@ vio6_wait(SHVIO *vio)
 }
 
 static int
-vio6_start_blend(
+vio6_setup_blend(
 	SHVIO *vio,
 	const struct ren_vid_surface *src0,
 	const struct ren_vid_surface *src1,
@@ -1141,7 +1141,6 @@ vio6_start_blend(
 	}
 	vio6_wpf_setup(vio, ent_sink, src0, dst);	/* color */
 
-	vio6_start(vio);
 	return 0;
 fail_link_entities:
 fail_lock_entities:
@@ -1159,5 +1158,5 @@ const struct shvio_operations vio6_ops = {
 	.set_dst_phys = vio6_set_dst_phys,
 	.start = vio6_start,
 	.wait = vio6_wait,
-	.start_blend = vio6_start_blend,
+	.setup_blend = vio6_setup_blend,
 };
