@@ -383,10 +383,10 @@ int shvio_list_vio(char ***names, int *count);
 
 /** Start a surface blend
  * \param vio VIO handle
- * \param src1 Parent surface. The output will be this size.
- * \param src2 Overlay surface. Can be NULL, if no overlay required.
- * \param src3 Overlay surface. Can be NULL, if no overlay required.
- * \param src4 Overlay surface. Can be NULL, if no overlay required.
+ * \param virt Virtual parent surface. The output will be this size (optional)
+ * \param src_list list in overlay surfaces.
+ *                 src_list[0] will be parent if virt = NULL
+ * \param src count number of surfaces specified by src_list
  * \param dest Output surface.
  * \retval 0 Success
  * \retval -1 Error
@@ -395,9 +395,8 @@ int
 shvio_setup_blend(
 	SHVIO *vio,
 	const struct ren_vid_rect *virt,
-	const struct ren_vid_surface *src1,
-	const struct ren_vid_surface *src2,
-	const struct ren_vid_surface *src3,
+	const struct ren_vid_surface *const *src_list,
+	int src_count,
 	const struct ren_vid_surface *dst);
 
 /** Perform a surface blend.
@@ -406,9 +405,8 @@ shvio_setup_blend(
 int
 shvio_blend(
 	SHVIO *vio,
-	const struct ren_vid_surface *src1,
-	const struct ren_vid_surface *src2,
-	const struct ren_vid_surface *src3,
+	const struct ren_vid_surface *const *src_list,
+	int src_count,
 	const struct ren_vid_surface *dst);
 
 #endif /* __VIO_COLORSPACE_H__ */

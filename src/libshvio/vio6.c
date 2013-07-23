@@ -765,13 +765,13 @@ vio6_uds_setup(SHVIO *vio, struct shvio_entity *entity,
 static void
 vio6_bru_setup(SHVIO *vio, struct shvio_entity *entity,
 	       const struct ren_vid_rect *virt,
-	       const struct ren_vid_surface *src0,
-	       const struct ren_vid_surface *src1,
-	       const struct ren_vid_surface *src2,
+	       const struct ren_vid_surface *const *src_list,
+	       int src_count,
 	       const struct ren_vid_surface *dst)
 {
 	void *base_addr = vio->uio_mmio.iomem;
 	int bru_input = 0, blend_unit = 0;
+	int i;
 	unsigned int val;
 	const int bru_input_index[] = {
 		0x4, 		/* virtual input*/
@@ -782,6 +782,7 @@ vio6_bru_setup(SHVIO *vio, struct shvio_entity *entity,
 	};
 
 	write_reg(base_addr, 0, BRU_INCTRL);
+	write_reg(base_addr, 0, BRU_ROP);
 #if 0
 	/* virtual surface */
 	write_reg(base_addr, ((src->w / 2) << 16) | (src->h / 2), BRU_VIRRPF_SIZE);
@@ -793,44 +794,31 @@ vio6_bru_setup(SHVIO *vio, struct shvio_entity *entity,
 	if (virt) {
 		write_reg(base_addr, (virt->w << 16) | virt->h, BRU_VIRRPF_SIZE);
 		write_reg(base_addr, 0xFF000000, BRU_VIRRPF_COL);
+		src_count++;
 	} else {
 		bru_input = 1; /* bypass virtual input */
 	}
 
-	val = (bru_input_index[bru_input++] << 20);
-	val |= (bru_input_index[bru_input++] << 16);
-	write_reg(base_addr, 1 << 31 | val, BRU_CTRL(blend_unit++));
+	for (i = 0; i < src_count - 1; i++) {
+		/* setup blend inputs */
+		val = 0;
+		if (i == 0)
+			val = (bru_input_index[bru_input++] << 20);
+		val |= (bru_input_index[bru_input++] << 16);
+		write_reg(base_addr, 1 << 31 | val, BRU_CTRL(i));
+		if (i == 1) { // ROP Unit needs to be set for B
+			write_reg(base_addr, val << 4, BRU_ROP);
+		}
 
-	/* Unit B never used */
-	write_reg(base_addr, 0, BRU_ROP);
-	write_reg(base_addr, 0, BRU_CTRL(blend_unit++));
-
-	if (virt) // Use Unit C for input 1 when virtual input is present
-		write_reg(base_addr, 1 << 31 |  (bru_input_index[bru_input++] << 16),
-			BRU_CTRL(blend_unit++));
-
-	/* SRC for Unit C/D = BRUin2 */
-	if (src2) {
-		write_reg(base_addr, 1 << 31 |  (bru_input_index[bru_input++] << 16),
-			BRU_CTRL(blend_unit++));
-	} else {
-		write_reg(base_addr, 0, BRU_CTRL(blend_unit++));
+		/* setup blend coefficients */
+		val = (BRU_BLD_INV_SRCALPHA << 28) | (BRU_BLD_SRCALPHA << 24);
+		write_reg(base_addr, val, BRU_BLD(i));
 	}
 
-#if 0
-	/* SRC for Unit D = BRUin3 */
-	if (src2) {
-		write_reg(base_addr, 1 << 31 | 3 << 16, BRU_CTRL(3));
-	} else {
-		write_reg(base_addr, 0, BRU_CTRL(3));
+	for (i = src_count - 1; i < 4; i++) {
+		write_reg(base_addr, 0, BRU_CTRL(i));
 	}
-#endif
-	val = (BRU_BLD_INV_SRCALPHA << 28) | (BRU_BLD_SRCALPHA << 24);
 
-	write_reg(base_addr, val, BRU_BLD(0));
-	write_reg(base_addr, val, BRU_BLD(1));
-	write_reg(base_addr, val, BRU_BLD(2));
-	write_reg(base_addr, val, BRU_BLD(3));
 }
 
 static void
@@ -1098,20 +1086,29 @@ static int
 vio6_setup_blend(
 	SHVIO *vio,
 	const struct ren_vid_rect *virt,
-	const struct ren_vid_surface *src0,
-	const struct ren_vid_surface *src1,
-	const struct ren_vid_surface *src2,
+	const struct ren_vid_surface *const *src_list,
+	int src_count,
 	const struct ren_vid_surface *dst)
 {
 	uint32_t val;
 	void *base_addr;
 	struct shvio_entity *ent_src0, *ent_blend, *ent_sink;
 	int ret;
+	int i;
 
-	if (!format_supported(src0->format) ||
-	    (src1 && !format_supported(src1->format)) ||
-	    (src2 && !format_supported(src2->format)) ||
-	    !format_supported(dst->format)) {
+	if (src_count < 2 || src_count > N_BLEND_INPUTS) {
+		debug_info("ERR: Invalid number of blend input sources");
+		return -1;
+	}
+
+	for (i = 0; i < src_count; i++) {
+		if (!format_supported(src_list[i]->format)) {
+			debug_info("ERR: Invalid surface format!");
+			return -1;
+		}
+	}
+
+	if (!format_supported(dst->format)) {
 		debug_info("ERR: Invalid surface format!");
 		return -1;
 	}
@@ -1120,56 +1117,32 @@ vio6_setup_blend(
 	while (vio->locked_entities != NULL)
 		vio6_unlock(vio, vio->locked_entities);
 
-	ent_src0 = vio6_lock(vio, SHVIO_FUNC_SRC);
 	ent_blend = vio6_lock(vio, SHVIO_FUNC_BLEND);
 	ent_sink = vio6_lock(vio, SHVIO_FUNC_SINK);
 
-	if ((ent_src0 == NULL) || (ent_sink == NULL) || (ent_blend == NULL)) {
+	if ((ent_sink == NULL) || (ent_blend == NULL)) {
 		debug_info("ERR: No entity unavailable!");
 		goto fail_lock_entities;
 	}
 
 	vio6_reset(vio);
-	ret = vio6_link(vio, ent_src0, ent_blend, 0);	/* make a link from src to scale */
-	if (ret < 0) {
-		debug_info("ERR: cannot make a link from src to scale");
-		goto fail_link_entities;
-	}
-	vio6_rpf_setup(vio, ent_src0, src0, dst);	/* color */
 
-	if (src1) {
-		struct shvio_entity *ent_src1;
-		ent_src1 = vio6_lock(vio, SHVIO_FUNC_SRC);
-		if (ent_src1 == NULL) {
+	for (i = 0; i < src_count; i++) {
+		struct shvio_entity *ent_src;
+		ent_src = vio6_lock(vio, SHVIO_FUNC_SRC);
+		if (ent_src == NULL) {
 			debug_info("ERR: No source entity unavailable!");
 			goto fail_lock_entities;
 		}
-
-		ret = vio6_link(vio, ent_src1, ent_blend, 1);	/* make a link from src to scale */
+		ret = vio6_link(vio, ent_src, ent_blend, i);	/* make a link from src to scale */
 		if (ret < 0) {
 			debug_info("ERR: cannot make a link from src to scale");
 			goto fail_link_entities;
 		}
-		vio6_rpf_setup(vio, ent_src1, src1, dst);	/* color */
+		vio6_rpf_setup(vio, ent_src, src_list[i], dst);	/* color */
 	}
 
-	if (src2) {
-		struct shvio_entity *ent_src2;
-		ent_src2 = vio6_lock(vio, SHVIO_FUNC_SRC);
-		if (ent_src2 == NULL) {
-			debug_info("ERR: No source entity unavailable!");
-			goto fail_lock_entities;
-		}
-
-		ret = vio6_link(vio, ent_src2, ent_blend, 2);	/* make a link from src to scale */
-		if (ret < 0) {
-			debug_info("ERR: cannot make a link from src to scale");
-			goto fail_link_entities;
-		}
-		vio6_rpf_setup(vio, ent_src2, src2, dst);	/* color */
-	}
-
-	vio6_bru_setup(vio, ent_blend, virt, src0, src1, src2, dst);	/* width, height */
+	vio6_bru_setup(vio, ent_blend, virt, src_list, src_count, dst);	/* width, height */
 
 	ret = vio6_link(vio, ent_blend, ent_sink, 0);	/* make a link from scale to sink */
 	if (ret < 0) {

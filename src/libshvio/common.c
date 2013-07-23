@@ -472,14 +472,13 @@ int
 shvio_setup_blend(
 	SHVIO *vio,
 	const struct ren_vid_rect *virt,
-	const struct ren_vid_surface *src0,
-	const struct ren_vid_surface *src1,
-	const struct ren_vid_surface *src2,
+	const struct ren_vid_surface *const *src_list,
+	int src_count,
 	const struct ren_vid_surface *dst)
 {
 	uiomux_lock (vio->uiomux, vio->uiores);
 
-	if (vio->ops.setup_blend(vio, virt, src0, src1, src2, dst) < 0)
+	if (vio->ops.setup_blend(vio, virt, src_list, src_count, dst) < 0)
 		goto fail_setup_blend;
 
 fail_setup_blend:
@@ -700,15 +699,13 @@ err:
 int
 shvio_blend(
 	SHVIO *vio,
-	const struct shvio_surface *src1,
-	const struct shvio_surface *src2,
-	const struct shvio_surface *src3,
-	const struct shvio_surface *src4,
+	const struct ren_vid_surface *const *src_list,
+	int src_count;
 	const struct shvio_surface *dest)
 {
 	int ret = 0;
 
-	ret = shvio_start_blend(vio, src1, src2, src3, src4, dest);
+	ret = shvio_setup_blend(vio, src_list, src_count, dest);
 
 	if (ret == 0) {
 		shvio_start(vio)

@@ -254,6 +254,9 @@ int main (int argc, char * argv[])
 	size_t input_size[2], output_size;
 	SHVIO *vio;
 	struct ren_vid_surface src[2];
+	const struct ren_vid_surface *srclist[2] = {
+		&src[0], &src[1]
+	};
 	struct ren_vid_surface dst;
 	void *inbuf[2], *outbuf;
 	int ret;
@@ -716,7 +719,7 @@ int main (int argc, char * argv[])
 			}
 
 			printf("invoke shvio_setup_blend()...\n");
-			ret = shvio_setup_blend(vio, NULL, &src[0], &src[1], NULL, &dst);
+			ret = shvio_setup_blend(vio, NULL, srclist, 2, &dst);
 			shvio_start(vio);
 			printf("shvio_start_blend() = %d\n", ret);
 			ret = shvio_wait(vio);
