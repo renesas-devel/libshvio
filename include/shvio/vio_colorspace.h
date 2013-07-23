@@ -68,6 +68,8 @@ struct ren_vid_rect {
 /** Surface */
 struct ren_vid_surface {
 	ren_vid_format_t format; /**< Surface format */
+	int x;      /**< Offset from left in pixels */
+	int y;      /**< Offset from top in pixels */
 	int w;      /**< Width of active surface in pixels */
 	int h;      /**< Height of active surface in pixels */
 	int pitch;  /**< Width of surface in pixels */

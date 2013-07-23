@@ -607,7 +607,7 @@ vio6_rpf_setup(SHVIO *vio, struct shvio_entity *entity,
 		Cr = uiomux_all_virt_to_phys(src->pc2);
 		write_reg(base_addr, Cr, RPF_SRCM_ADDR_C1(entity->idx));
 	}
-	write_reg(base_addr, 0, RPF_LOC(entity->idx));
+	write_reg(base_addr, (src->x << 16) | src->y, RPF_LOC(entity->idx));
 	if (has_alpha(src->format))
 		write_reg(base_addr, 0, RPF_ALPH_SEL(entity->idx));
 	else
