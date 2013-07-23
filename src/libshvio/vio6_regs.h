@@ -183,5 +183,10 @@
 #define BRU_BLD(_m)	\
 	(0x2a14 + ((_m) * 0x0008))	/* */
 #define BRU_ROP			0x2a30	/* start/stop */
+#define BRU_BLD_DSTALPHA	0x0
+#define BRU_BLD_INV_DSTALPHA	0x1
+#define BRU_BLD_SRCALPHA	0x2
+#define BRU_BLD_INV_SRCALPHA	0x3
+#define BRU_BLD_FIXED		0x4
 
 #endif /* __SHVIO6_REGS_H__ */

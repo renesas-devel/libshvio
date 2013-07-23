@@ -825,11 +825,12 @@ vio6_bru_setup(SHVIO *vio, struct shvio_entity *entity,
 		write_reg(base_addr, 0, BRU_CTRL(3));
 	}
 #endif
+	val = (BRU_BLD_INV_SRCALPHA << 28) | (BRU_BLD_SRCALPHA << 24);
 
-	write_reg(base_addr, (3 << 28) | (2 << 24), BRU_BLD(0));
-	write_reg(base_addr, (3 << 28) | (2 << 24), BRU_BLD(1));
-	write_reg(base_addr, (3 << 28) | (2 << 24), BRU_BLD(2));
-	write_reg(base_addr, (3 << 28) | (2 << 24), BRU_BLD(3));
+	write_reg(base_addr, val, BRU_BLD(0));
+	write_reg(base_addr, val, BRU_BLD(1));
+	write_reg(base_addr, val, BRU_BLD(2));
+	write_reg(base_addr, val, BRU_BLD(3));
 }
 
 static void
