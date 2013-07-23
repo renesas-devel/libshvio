@@ -1134,7 +1134,7 @@ vio6_setup_blend(
 		debug_info("ERR: cannot make a link from src to scale");
 		goto fail_link_entities;
 	}
-	vio6_rpf_setup(vio, ent_src0, src0, src0);	/* color */
+	vio6_rpf_setup(vio, ent_src0, src0, dst);	/* color */
 
 	if (src1) {
 		struct shvio_entity *ent_src1;
@@ -1149,7 +1149,7 @@ vio6_setup_blend(
 			debug_info("ERR: cannot make a link from src to scale");
 			goto fail_link_entities;
 		}
-		vio6_rpf_setup(vio, ent_src1, src1, src1);	/* color */
+		vio6_rpf_setup(vio, ent_src1, src1, dst);	/* color */
 	}
 
 	if (src2) {
@@ -1165,7 +1165,7 @@ vio6_setup_blend(
 			debug_info("ERR: cannot make a link from src to scale");
 			goto fail_link_entities;
 		}
-		vio6_rpf_setup(vio, ent_src2, src2, src2);	/* color */
+		vio6_rpf_setup(vio, ent_src2, src2, dst);	/* color */
 	}
 
 	vio6_bru_setup(vio, ent_blend, virt, src0, src1, src2, dst);	/* width, height */
@@ -1175,7 +1175,7 @@ vio6_setup_blend(
 		debug_info("ERR: cannot make a link from scale to sink");
 		goto fail_link_entities;
 	}
-	vio6_wpf_setup(vio, ent_sink, src0, dst, (virt != NULL));	/* color */
+	vio6_wpf_setup(vio, ent_sink, dst, dst, (virt != NULL));	/* color */
 
 	return 0;
 fail_link_entities:
