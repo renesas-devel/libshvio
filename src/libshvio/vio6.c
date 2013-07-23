@@ -668,7 +668,8 @@ static inline void rpfact(struct shvio_entity *entity, uint32_t *val)
 static void
 vio6_wpf_setup(SHVIO *vio, struct shvio_entity *entity,
 	       const struct ren_vid_surface *src,
-	       const struct ren_vid_surface *dst)
+	       const struct ren_vid_surface *dst,
+	       int bru_virt_act)
 {
 	void *base_addr = vio->uio_mmio.iomem;
 	const struct vio_format_info *viofmt;
@@ -688,8 +689,18 @@ vio6_wpf_setup(SHVIO *vio, struct shvio_entity *entity,
 
 	val = 0;
 	rpfact(entity, &val);
-	if (val & 0x01)
-		val += 1;
+	if (bru_virt_act) {
+		val |= SRC_VIRT_MAIN;
+	} else {
+		int i, mask = 0x3;
+		for (i = 0; i < 5; i++) {
+			if (val & mask) {
+				val = (val & ~mask) | 2 << (i*2);
+				break;
+			}
+			mask << 2;
+		}
+	}
 	write_reg(base_addr, val, WPF_SRCRPF(entity->idx));
 	write_reg(base_addr, 0, WPF_HSZCLIP(entity->idx));
 	write_reg(base_addr, 0, WPF_VSZCLIP(entity->idx));
@@ -753,12 +764,22 @@ vio6_uds_setup(SHVIO *vio, struct shvio_entity *entity,
 
 static void
 vio6_bru_setup(SHVIO *vio, struct shvio_entity *entity,
+	       const struct ren_vid_rect *virt,
 	       const struct ren_vid_surface *src0,
 	       const struct ren_vid_surface *src1,
 	       const struct ren_vid_surface *src2,
 	       const struct ren_vid_surface *dst)
 {
 	void *base_addr = vio->uio_mmio.iomem;
+	int bru_input = 0, blend_unit = 0;
+	unsigned int val;
+	const int bru_input_index[] = {
+		0x4, 		/* virtual input*/
+		0x0, 		/* BRUin0 */
+		0x1, 		/* BRUin1 */
+		0x2, 		/* BRUin2 */
+		0x3, 		/* BRUin3 */
+	};
 
 	write_reg(base_addr, 0, BRU_INCTRL);
 #if 0
@@ -769,17 +790,31 @@ vio6_bru_setup(SHVIO *vio, struct shvio_entity *entity,
 	write_reg(base_addr, 1 << 31 | 4 << 20 | 0 << 16 | 0 << 4 | 0, BRU_CTRL(0));
 #endif
 	/* SRC for Unit A = BRUin1, DST for Unit A = BRUin0 */
-	write_reg(base_addr, 1 << 31 | 0 << 20 | 1 << 16 , BRU_CTRL(0));
+	if (virt) {
+		write_reg(base_addr, (virt->w << 16) | virt->h, BRU_VIRRPF_SIZE);
+		write_reg(base_addr, 0xFF000000, BRU_VIRRPF_COL);
+	} else {
+		bru_input = 1; /* bypass virtual input */
+	}
+
+	val = (bru_input_index[bru_input++] << 20);
+	val |= (bru_input_index[bru_input++] << 16);
+	write_reg(base_addr, 1 << 31 | val, BRU_CTRL(blend_unit++));
 
 	/* Unit B never used */
 	write_reg(base_addr, 0, BRU_ROP);
-	write_reg(base_addr, 0, BRU_CTRL(1));
+	write_reg(base_addr, 0, BRU_CTRL(blend_unit++));
 
-	/* SRC for Unit C = BRUin2 */
+	if (virt) // Use Unit C for input 1 when virtual input is present
+		write_reg(base_addr, 1 << 31 |  (bru_input_index[bru_input++] << 16),
+			BRU_CTRL(blend_unit++));
+
+	/* SRC for Unit C/D = BRUin2 */
 	if (src2) {
-		write_reg(base_addr, 1 << 31 | 2 << 16, BRU_CTRL(2));
+		write_reg(base_addr, 1 << 31 |  (bru_input_index[bru_input++] << 16),
+			BRU_CTRL(blend_unit++));
 	} else {
-		write_reg(base_addr, 0, BRU_CTRL(2));
+		write_reg(base_addr, 0, BRU_CTRL(blend_unit++));
 	}
 
 #if 0
@@ -933,7 +968,7 @@ vio6_fill(
 	vsrc.format = REN_ARGB32;
 	vio6_rpf_setup(vio, ent_src, &vsrc, dst);
 	vio6_rpf_control(vio, ent_src, RPF_ENABLE_VIRTIN, argb);
-	vio6_wpf_setup(vio, ent_sink, dst, dst);
+	vio6_wpf_setup(vio, ent_sink, dst, dst, 0);
 
 	return 0;
 fail_link_entities:
@@ -991,7 +1026,7 @@ vio6_setup(
 		debug_info("ERR: cannot make a link from scale to sink");
 		goto fail_link_entities;
 	}
-	vio6_wpf_setup(vio, ent_sink, src, dst);	/* color */
+	vio6_wpf_setup(vio, ent_sink, src, dst, 0);	/* color */
 
 	return 0;
 fail_link_entities:
@@ -1061,6 +1096,7 @@ vio6_wait(SHVIO *vio)
 static int
 vio6_setup_blend(
 	SHVIO *vio,
+	const struct ren_vid_rect *virt,
 	const struct ren_vid_surface *src0,
 	const struct ren_vid_surface *src1,
 	const struct ren_vid_surface *src2,
@@ -1132,14 +1168,14 @@ vio6_setup_blend(
 		vio6_rpf_setup(vio, ent_src2, src2, src2);	/* color */
 	}
 
-	vio6_bru_setup(vio, ent_blend, src0, src1, src2, dst);	/* width, height */
+	vio6_bru_setup(vio, ent_blend, virt, src0, src1, src2, dst);	/* width, height */
 
 	ret = vio6_link(vio, ent_blend, ent_sink, 0);	/* make a link from scale to sink */
 	if (ret < 0) {
 		debug_info("ERR: cannot make a link from scale to sink");
 		goto fail_link_entities;
 	}
-	vio6_wpf_setup(vio, ent_sink, src0, dst);	/* color */
+	vio6_wpf_setup(vio, ent_sink, src0, dst, (virt != NULL));	/* color */
 
 	return 0;
 fail_link_entities:

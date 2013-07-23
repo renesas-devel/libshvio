@@ -471,6 +471,7 @@ fail_get_hw_surface_dst:
 int
 shvio_setup_blend(
 	SHVIO *vio,
+	const struct ren_vid_rect *virt,
 	const struct ren_vid_surface *src0,
 	const struct ren_vid_surface *src1,
 	const struct ren_vid_surface *src2,
@@ -478,7 +479,7 @@ shvio_setup_blend(
 {
 	uiomux_lock (vio->uiomux, vio->uiores);
 
-	if (vio->ops.setup_blend(vio, src0, src1, src2, dst) < 0)
+	if (vio->ops.setup_blend(vio, virt, src0, src1, src2, dst) < 0)
 		goto fail_setup_blend;
 
 fail_setup_blend:

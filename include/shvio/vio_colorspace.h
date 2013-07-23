@@ -392,6 +392,7 @@ int shvio_list_vio(char ***names, int *count);
 int
 shvio_setup_blend(
 	SHVIO *vio,
+	const struct ren_vid_rect *virt,
 	const struct ren_vid_surface *src1,
 	const struct ren_vid_surface *src2,
 	const struct ren_vid_surface *src3,

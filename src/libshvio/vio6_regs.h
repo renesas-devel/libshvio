@@ -107,6 +107,8 @@
 #define SRC_RPF3_SUB		(1 << 6)
 #define SRC_RPF4_MAIN		(2 << 8)
 #define SRC_RPF4_SUB		(1 << 8)
+#define SRC_VIRT_MAIN		(2 << 28)
+#define SRC_VIRT_SUB		(1 << 29)
 
 #define WPF_HSZCLIP(_n)		\
 	(0x1004 + ((_n) * 0x0100))	/* */

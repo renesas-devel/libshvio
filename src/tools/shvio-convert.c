@@ -716,7 +716,7 @@ int main (int argc, char * argv[])
 			}
 
 			printf("invoke shvio_setup_blend()...\n");
-			ret = shvio_setup_blend(vio, &src[0], &src[1], NULL, &dst);
+			ret = shvio_setup_blend(vio, NULL, &src[0], &src[1], NULL, &dst);
 			shvio_start(vio);
 			printf("shvio_start_blend() = %d\n", ret);
 			ret = shvio_wait(vio);
