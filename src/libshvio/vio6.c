@@ -176,6 +176,8 @@ static const struct vio_format_info vio_fmts[] = {
 	{ REN_RGB24,	FMT_RGB888,	0xf },
 	{ REN_BGR24,	FMT_BGR888,	0xf },
 	{ REN_RGB32,	FMT_RGBX888,	0xc },
+	{ REN_BGR32,	FMT_RGBX888,	0xf },
+	{ REN_BGRA32,	FMT_RGBX888,	0xf },
 	{ REN_XRGB32,	FMT_ARGB8888,	0xc },
 	{ REN_ARGB32,	FMT_ARGB8888,	0xc },
 };
@@ -606,7 +608,7 @@ vio6_rpf_setup(SHVIO *vio, struct shvio_entity *entity,
 		write_reg(base_addr, Cr, RPF_SRCM_ADDR_C1(entity->idx));
 	}
 	write_reg(base_addr, 0, RPF_LOC(entity->idx));
-	if (src->format == REN_ARGB32)
+	if (has_alpha(src->format))
 		write_reg(base_addr, 0, RPF_ALPH_SEL(entity->idx));
 	else
 		write_reg(base_addr, 4 << 28, RPF_ALPH_SEL(entity->idx));
@@ -728,7 +730,7 @@ vio6_uds_setup(SHVIO *vio, struct shvio_entity *entity,
 	void *base_addr = vio->uio_mmio.iomem;
 
 	/* UDF: scale setting */
-	if (src->format != REN_ARGB32) {
+	if (!has_alpha(src->format)) {
 		/* use bi-cubic convolution */
 		write_reg(base_addr, UDS_AMD | UDS_FMD | UDS_BC,
 			  UDS_CTRL(entity->idx));
