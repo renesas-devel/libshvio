@@ -68,8 +68,6 @@ struct ren_vid_rect {
 /** Surface */
 struct ren_vid_surface {
 	ren_vid_format_t format; /**< Surface format */
-	int x;      /**< Offset from left in pixels */
-	int y;      /**< Offset from top in pixels */
 	int w;      /**< Width of active surface in pixels */
 	int h;      /**< Height of active surface in pixels */
 	int pitch;  /**< Width of surface in pixels */
@@ -80,6 +78,7 @@ struct ren_vid_surface {
 	int bpitchy;  /**< Byte-pitch of Y plane (preferred than 'pitch', or ignored if 0) */
 	int bpitchc;  /**< Byte-pitch of CbCr plane (preferred than 'pitch', or ignored if 0) */
 	int bpitcha;  /**< Byte-pitch of Alpha plane (preferred than 'pitch', or ignored if 0) */
+	struct ren_vid_rect blend_out; /** Output window for blend operations */
 	int flags;
 };
 
