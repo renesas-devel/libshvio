@@ -30,7 +30,13 @@
 #include "shvio/shvio.h"
 
 #ifdef DEBUG
+#ifdef ANDROID
+#include <cutils/log.h>
+#define debug_info(s) ALOGD("%s: %s\n", __func__, s)
+#else
 #define debug_info(s) fprintf(stderr, "%s: %s\n", __func__, s)
+#endif
+
 #else
 #define debug_info(s)
 #endif
