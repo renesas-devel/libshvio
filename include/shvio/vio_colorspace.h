@@ -80,6 +80,7 @@ struct ren_vid_surface {
 	int bpitchy;  /**< Byte-pitch of Y plane (preferred than 'pitch', or ignored if 0) */
 	int bpitchc;  /**< Byte-pitch of CbCr plane (preferred than 'pitch', or ignored if 0) */
 	int bpitcha;  /**< Byte-pitch of Alpha plane (preferred than 'pitch', or ignored if 0) */
+	int flags;
 };
 
 struct format_info {
@@ -225,6 +226,14 @@ typedef enum {
 	SHVIO_NO_ROT=0,	/**< No rotation */
 	SHVIO_ROT_90,	/**< Rotate 90 degrees clockwise */
 } shvio_rotation_t;
+
+/** FLAGS values.  Set thse values in .flags per surface */
+
+/** Blend flags */
+#define BLEND_MODE_COVERAGE	(0 << 0)
+#define BLEND_MODE_PREMULT	(1 << 0)
+#define BLEND_MODE_MASK		(1 << 0)
+
 
 /** Setup a (scale|rotate) & crop between YCbCr & RGB surfaces
  * The scaling factor is calculated from the surface sizes.

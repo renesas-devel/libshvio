@@ -811,7 +811,17 @@ vio6_bru_setup(SHVIO *vio, struct shvio_entity *entity,
 		}
 
 		/* setup blend coefficients */
-		val = (BRU_BLD_INV_SRCALPHA << 28) | (BRU_BLD_SRCALPHA << 24);
+		switch (src_list[i]->flags & BLEND_MODE_MASK) {
+		case BLEND_MODE_COVERAGE:
+			val = (BRU_BLD_INV_SRCALPHA << 28) |
+					(BRU_BLD_SRCALPHA << 24);
+			break;
+		case BLEND_MODE_PREMULT:
+			val = (BRU_BLD_INV_SRCALPHA << 28) |
+					(BRU_BLD_FIXED << 24) | 255;
+			break;
+		}
+
 		write_reg(base_addr, val, BRU_BLD(i));
 	}
 
