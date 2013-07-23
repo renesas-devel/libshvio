@@ -1144,10 +1144,35 @@ vio6_setup_blend(
 			debug_info("ERR: No source entity unavailable!");
 			goto fail_lock_entities;
 		}
-		ret = vio6_link(vio, ent_src, ent_blend, i);	/* make a link from src to scale */
-		if (ret < 0) {
-			debug_info("ERR: cannot make a link from src to scale");
-			goto fail_link_entities;
+		if (src_list[i]->w != src_list[i]->blend_out.w ||
+				src_list[i]->h != src_list[i]->blend_out.h) {
+			struct shvio_entity *ent_scale;
+			struct ren_vid_surface scale_out;
+			scale_out = *(src_list[i]);
+			scale_out.w = src_list[i]->blend_out.w;
+			scale_out.h = src_list[i]->blend_out.h;
+			ent_scale = vio6_lock(vio, SHVIO_FUNC_SCALE);
+			if (ent_scale == NULL) {
+				debug_info("ERR: No scale entity unavailable!");
+				goto fail_lock_entities;
+			}
+			ret = vio6_link(vio, ent_src, ent_scale, 0);	/* make a link from src to scale */
+			if (ret < 0) {
+				debug_info("ERR: cannot make a link from src to scale");
+				goto fail_link_entities;
+			}
+			vio6_uds_setup(vio, ent_scale, src_list[i], &scale_out);	/* color */
+			ret = vio6_link(vio, ent_scale, ent_blend, i);	/* make a link from scale to blend */
+			if (ret < 0) {
+				debug_info("ERR: cannot make a link from scale to blend");
+				goto fail_link_entities;
+			}
+		} else {
+			ret = vio6_link(vio, ent_src, ent_blend, i);	/* make a link from src to blend */
+			if (ret < 0) {
+				debug_info("ERR: cannot make a link from src to blend");
+				goto fail_link_entities;
+			}
 		}
 		vio6_rpf_setup(vio, ent_src, src_list[i], dst);	/* color */
 	}
