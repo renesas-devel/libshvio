@@ -481,10 +481,12 @@ shvio_setup_blend(
 	if (vio->ops.setup_blend(vio, virt, src_list, src_count, dst) < 0)
 		goto fail_setup_blend;
 
+	return 0;
+
 fail_setup_blend:
 	uiomux_unlock(vio->uiomux, vio->uiores);
 
-	return 0;
+	return -1;
 }
 
 #if 0
