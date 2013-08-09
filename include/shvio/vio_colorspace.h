@@ -197,12 +197,12 @@ static inline void get_sel_surface(
 	const struct ren_vid_surface *in,
 	const struct ren_vid_rect *sel)
 {
-	int x = sel->x & ~horz_increment(in->format);
-	int y = sel->y & ~vert_increment(in->format);
+	int x = sel->x & ~(horz_increment(in->format)-1);
+	int y = sel->y & ~(vert_increment(in->format)-1);
 
 	*out = *in;
-	out->w = sel->w & ~horz_increment(in->format);
-	out->h = sel->h & ~vert_increment(in->format);
+	out->w = sel->w & ~(horz_increment(in->format)-1);
+	out->h = sel->h & ~(vert_increment(in->format)-1);
 
 	if (in->py) out->py += offset_y(in->format, x, y, in->pitch);
 	if (in->pc) out->pc += offset_c(in->format, x, y, in->pitch);
