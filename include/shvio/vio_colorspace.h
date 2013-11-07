@@ -314,6 +314,15 @@ void
 shvio_start(
 	SHVIO *vio);
 
+/** Check if hardware support the bundle mode.
+ * \param vio VIO handle
+ * \retval 0 Supports the bundle mode
+ * \retval -1 Not support the bunfle mode
+ */
+int
+shvio_has_bundle(
+	 SHVIO *vio);
+
 /** Start a VIO operation (bundle mode).
  * \param vio VIO handle
  * \param bundle_lines Number of lines to process

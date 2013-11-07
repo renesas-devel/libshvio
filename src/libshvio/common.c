@@ -334,6 +334,12 @@ shvio_start(SHVIO *vio)
 	vio->ops.start(vio);
 }
 
+int
+shvio_has_bundle(SHVIO *vio)
+{
+	return vio->ops.start_bundle ? 1 : 0;
+}
+
 void
 shvio_start_bundle(
 	SHVIO *vio,
