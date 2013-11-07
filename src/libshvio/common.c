@@ -339,7 +339,8 @@ shvio_start_bundle(
 	SHVIO *vio,
 	int bundle_lines)
 {
-	vio->ops.start_bundle(vio, bundle_lines);
+	if (vio->ops.start_bundle)
+		vio->ops.start_bundle(vio, bundle_lines);
 }
 
 int
