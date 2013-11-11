@@ -104,6 +104,8 @@ struct SHVIO {
 	struct ren_vid_surface dst_hw;
 	int bt709;
 	int full_range;
+	int bundle_processing_lines;
+	int bundle_remaining_lines;
 
 	struct shvio_operations ops;
 	struct shvio_entity *locked_entities;

@@ -701,6 +701,8 @@ vio6_rpf_setup(SHVIO *vio, struct shvio_entity *entity,
 	   RPF_CKEY_CTRL, RPF_CKEY_SET0, RPF_CKEY_SET1 */
 	write_reg(base_addr, (src->w << 16) | src->h, RPF_SRC_BSIZE(entity->idx));
 	write_reg(base_addr, (src->w << 16) | src->h, RPF_SRC_ESIZE(entity->idx));
+	vio->bundle_remaining_lines = src->h;
+	vio->bundle_processing_lines = 0;
 	val = size_y(src->format, src->pitch, src->bpitchy);
 	val = val << 16;
 	if (is_ycbcr_planar(src->format))
@@ -1129,9 +1131,46 @@ vio6_start(SHVIO *vio)
 	struct shvio_entity *entity = vio->sink_entity;
 	void *base_addr = vio->uio_mmio.iomem;
 
+	if (entity == NULL)
+		return;
+
+	vio->bundle_processing_lines = vio->bundle_remaining_lines;
+
+	/* enable interrupt in VIO */
+	write_reg(base_addr, 1, WPF_IRQ_ENB(entity->idx));
+
+	/* start operation */
+	write_reg(base_addr, 1, CMD(entity->idx));
+}
+
+static void
+vio6_start_bundle(SHVIO *vio, int bundle_lines)
+{
+	const struct ren_vid_surface *src = &vio->src_hw;
+	void *base_addr = vio->uio_mmio.iomem;
+	struct shvio_entity *entity = vio->sink_entity;
 
 	if (entity == NULL)
 		return;
+
+	if (bundle_lines != vio->bundle_processing_lines) { 
+		struct shvio_entity *src_entity;
+
+		/* find a source entity from a linked entities chain */
+		src_entity = vio->locked_entities;
+		while (src_entity != NULL &&
+		       ((src_entity->funcs & SHVIO_FUNC_SRC) == 0))
+			src_entity = src_entity->list_next;
+		if (src_entity) {
+			/* fix up src's height settings */
+			write_reg(base_addr, (src->w << 16) | bundle_lines,
+				  RPF_SRC_BSIZE(src_entity->idx));
+			write_reg(base_addr, (src->w << 16) | bundle_lines,
+				  RPF_SRC_ESIZE(src_entity->idx));
+		}
+		/* save value of the bundle lines */
+		vio->bundle_processing_lines = bundle_lines;
+	}
 
 	/* enable interrupt in VIO */
 	write_reg(base_addr, 1, WPF_IRQ_ENB(entity->idx));
@@ -1144,10 +1183,13 @@ static int
 vio6_wait(SHVIO *vio)
 {
 	struct shvio_entity *entity = vio->sink_entity;
+	const struct ren_vid_surface *dst = &vio->dst_hw;
+	const struct ren_vid_surface *src = &vio->src_hw;
 	void *base_addr = vio->uio_mmio.iomem;
 	uint32_t vevtr;
 	uint32_t vstar;
 	int complete;
+	int filled_lines;
 
 	if (entity == NULL)
 		return -1;
@@ -1163,10 +1205,40 @@ vio6_wait(SHVIO *vio)
 
 	write_reg(base_addr, 0, WPF_IRQ_STA(entity->idx));   /* ack interrupts */
 
-	/* unlock all entities */
-	while (vio->locked_entities != NULL)
-		vio6_unlock(vio, vio->locked_entities);
-	vio->sink_entity = NULL;
+	filled_lines = vio->bundle_processing_lines;
+	vio->bundle_remaining_lines -= filled_lines;
+
+	if (vio->bundle_remaining_lines <= 0) {
+		/* unlock all entities */
+		while (vio->locked_entities != NULL)
+			vio6_unlock(vio, vio->locked_entities);
+		vio->sink_entity = NULL;
+		vio->bundle_remaining_lines = src->h;
+		vio->bundle_processing_lines = 0;
+	} else {
+		uint32_t val;
+
+		val = read_reg(base_addr, WPF_DSTM_ADDR_Y(entity->idx)) +
+			size_y(dst->format, dst->pitch,
+			       dst->bpitchy) * filled_lines;
+		write_reg(base_addr, val, WPF_DSTM_ADDR_Y(entity->idx));
+		if (is_ycbcr(dst->format)) {
+			val = read_reg(base_addr,
+				       WPF_DSTM_ADDR_C0(entity->idx)) +
+				size_c(dst->format, dst->pitch,
+				       dst->bpitchc) * filled_lines;
+			write_reg(base_addr, val,
+				  WPF_DSTM_ADDR_C0(entity->idx));
+		}
+		if (is_ycbcr_planar(dst->format)) {
+			val = read_reg(base_addr,
+				       WPF_DSTM_ADDR_C1(entity->idx)) +
+				size_c(dst->format, dst->pitch,
+				       dst->bpitchc) * filled_lines;
+			write_reg(base_addr, val,
+				  WPF_DSTM_ADDR_C1(entity->idx));
+		}
+	}
 
 	return complete;
 }
@@ -1284,6 +1356,7 @@ const struct shvio_operations vio6_ops = {
 	.set_dst = vio6_set_dst,
 	.set_dst_phys = vio6_set_dst_phys,
 	.start = vio6_start,
+	.start_bundle = vio6_start_bundle,
 	.wait = vio6_wait,
 	.setup_blend = vio6_setup_blend,
 };
