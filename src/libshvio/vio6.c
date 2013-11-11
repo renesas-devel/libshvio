@@ -20,7 +20,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#define DEBUG 2
+
 #include <stdint.h>
 #include <string.h>
 #include <stdio.h>
