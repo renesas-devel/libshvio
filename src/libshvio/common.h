@@ -107,6 +107,7 @@ struct SHVIO {
 
 	struct shvio_operations ops;
 	struct shvio_entity *locked_entities;
+	struct shvio_entity *sink_entity;
 };
 
 #endif /* __API_H__ */

@@ -517,7 +517,7 @@ vio6_set_dst_phys(
 static void
 vio6_reset(SHVIO *vio)
 {
-	struct shvio_entity *entity;
+	struct shvio_entity *entity = vio->sink_entity;
 	void *base_addr = vio->uio_mmio.iomem;
 	const struct timespec timeout = {
 		.tv_sec = 0,
@@ -525,12 +525,6 @@ vio6_reset(SHVIO *vio)
 	};
 	uint32_t val;
 	int i;
-
-	/* look for the sink entity */
-	entity = vio->locked_entities;
-	while (entity != NULL &&
-	       ((entity->funcs & SHVIO_FUNC_SINK) == 0))
-		entity = entity->list_next;
 
 	if (entity == NULL) {
 		debug_info("ERR: no sink entity");
@@ -968,12 +962,14 @@ vio6_fill(
 	vio6_rpf_setup(vio, ent_src, &vsrc, dst);
 	vio6_rpf_control(vio, ent_src, RPF_ENABLE_VIRTIN, argb);
 	vio6_wpf_setup(vio, ent_sink, dst, dst, 0);
+	vio->sink_entity = ent_sink;
 
 	return 0;
 fail_link_entities:
 fail_lock_entities:
 	while (vio->locked_entities != NULL)
 		vio6_unlock(vio, vio->locked_entities);
+	vio->sink_entity = NULL;
 	return -1;
 }
 
@@ -1026,25 +1022,23 @@ vio6_setup(
 		goto fail_link_entities;
 	}
 	vio6_wpf_setup(vio, ent_sink, src, dst, 0);	/* color */
+	vio->sink_entity = ent_sink;
 
 	return 0;
 fail_link_entities:
 fail_lock_entities:
 	while (vio->locked_entities != NULL)
 		vio6_unlock(vio, vio->locked_entities);
+	vio->sink_entity = NULL;
 	return -1;
 }
 
 static void
 vio6_start(SHVIO *vio)
 {
+	struct shvio_entity *entity = vio->sink_entity;
 	void *base_addr = vio->uio_mmio.iomem;
-	struct shvio_entity *entity;
 
-	entity = vio->locked_entities;
-	while (entity != NULL &&
-	       ((entity->funcs & SHVIO_FUNC_SINK) == 0))
-		entity = entity->list_next;
 
 	if (entity == NULL)
 		return;
@@ -1059,17 +1053,11 @@ vio6_start(SHVIO *vio)
 static int
 vio6_wait(SHVIO *vio)
 {
+	struct shvio_entity *entity = vio->sink_entity;
 	void *base_addr = vio->uio_mmio.iomem;
 	uint32_t vevtr;
 	uint32_t vstar;
 	int complete;
-	struct shvio_entity *entity;
-
-	/* look for a sink entity */
-	entity = vio->locked_entities;
-	while (entity != NULL &&
-	       ((entity->funcs & SHVIO_FUNC_SINK) == 0))
-		entity = entity->list_next;
 
 	if (entity == NULL)
 		return -1;
@@ -1088,6 +1076,7 @@ vio6_wait(SHVIO *vio)
 	/* unlock all entities */
 	while (vio->locked_entities != NULL)
 		vio6_unlock(vio, vio->locked_entities);
+	vio->sink_entity = NULL;
 
 	return complete;
 }
@@ -1126,6 +1115,7 @@ vio6_setup_blend(
 	/* unlock all entities once */
 	while (vio->locked_entities != NULL)
 		vio6_unlock(vio, vio->locked_entities);
+	vio->sink_entity = NULL;
 
 	ent_blend = vio6_lock(vio, SHVIO_FUNC_BLEND);
 	ent_sink = vio6_lock(vio, SHVIO_FUNC_SINK);
@@ -1185,12 +1175,14 @@ vio6_setup_blend(
 		goto fail_link_entities;
 	}
 	vio6_wpf_setup(vio, ent_sink, dst, dst, (virt != NULL));	/* color */
+	vio->sink_entity = ent_sink;
 
 	return 0;
 fail_link_entities:
 fail_lock_entities:
 	while (vio->locked_entities != NULL)
 		vio6_unlock(vio, vio->locked_entities);
+	vio->sink_entity = NULL;
 	return -1;
 }
 
