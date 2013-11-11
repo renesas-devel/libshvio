@@ -430,13 +430,33 @@ vio6_set_src(
 	void *src_py,
 	void *src_pc)
 {
+	struct shvio_entity *entity;
 	void *base_addr = vio->uio_mmio.iomem;
 	uint32_t Y, C;
 
+	/* look for a source entity */
+	entity = vio->locked_entities;
+	while (entity != NULL &&
+	       ((entity->funcs & SHVIO_FUNC_SRC) == 0))
+		entity = entity->list_next;
+
+	if (entity == NULL) {
+		debug_info("ERR: no src entity");
+		return;
+	}
+
+	if (vio->src_hw.py != vio->src_user.py) {
+		size_t len = size_y(vio->src_hw.format, vio->src_hw.h * vio->src_hw.w, 0);
+		len += size_c(vio->src_hw.format, vio->src_hw.h * vio->src_hw.w, 0);
+		uiomux_free(vio->uiomux, vio->uiores, vio->src_hw.py, len);
+	}
+
 	Y = uiomux_all_virt_to_phys(src_py);
+	write_reg(base_addr, Y, RPF_SRCM_ADDR_Y(entity->idx));
+	vio->src_hw.py = vio->src_user.py = src_py;
 	C = uiomux_all_virt_to_phys(src_pc);
-	write_reg(base_addr, Y, RPF_SRCM_ADDR_Y(0));
-	write_reg(base_addr, C, RPF_SRCM_ADDR_C0(0));
+	write_reg(base_addr, C, RPF_SRCM_ADDR_C0(entity->idx));
+	vio->src_hw.pc = vio->src_user.pc = src_pc;
 }
 
 static void
@@ -446,15 +466,36 @@ vio6_set_src2(
 	void *src_pcb,
 	void *src_pcr)
 {
+	struct shvio_entity *entity;
 	void *base_addr = vio->uio_mmio.iomem;
 	uint32_t Y, Cb, Cr;
 
+	/* look for a source entity */
+	entity = vio->locked_entities;
+	while (entity != NULL &&
+	       ((entity->funcs & SHVIO_FUNC_SRC) == 0))
+		entity = entity->list_next;
+
+	if (entity == NULL) {
+		debug_info("ERR: no src entity");
+		return;
+	}
+
+	if (vio->src_hw.py != vio->src_user.py) {
+		size_t len = size_y(vio->src_hw.format, vio->src_hw.h * vio->src_hw.w, 0);
+		len += size_c(vio->src_hw.format, vio->src_hw.h * vio->src_hw.w, 0);
+		uiomux_free(vio->uiomux, vio->uiores, vio->src_hw.py, len);
+	}
+
 	Y = uiomux_all_virt_to_phys(src_py);
+	write_reg(base_addr, Y, RPF_SRCM_ADDR_Y(entity->idx));
+	vio->src_hw.py = vio->src_user.py = src_py;
 	Cb = uiomux_all_virt_to_phys(src_pcb);
+	write_reg(base_addr, Cb, RPF_SRCM_ADDR_C0(entity->idx));
+	vio->src_hw.pc = vio->src_user.pc = src_pcb;
 	Cr = uiomux_all_virt_to_phys(src_pcr);
-	write_reg(base_addr, Y, RPF_SRCM_ADDR_Y(0));
-	write_reg(base_addr, Cb, RPF_SRCM_ADDR_C0(0));
-	write_reg(base_addr, Cr, RPF_SRCM_ADDR_C1(0));
+	write_reg(base_addr, Cr, RPF_SRCM_ADDR_C1(entity->idx));
+	vio->src_hw.pc2 = vio->src_user.pc2 = src_pcr;
 }
 
 static void
@@ -463,10 +504,23 @@ vio6_set_src_phys(
 	uint32_t src_py,
 	uint32_t src_pc)
 {
+	struct shvio_entity *entity;
 	void *base_addr = vio->uio_mmio.iomem;
 
-	write_reg(base_addr, src_py, RPF_SRCM_ADDR_Y(0));
-	write_reg(base_addr, src_pc, RPF_SRCM_ADDR_C0(0));
+	/* look for a source entity */
+	entity = vio->locked_entities;
+	while (entity != NULL &&
+	       ((entity->funcs & SHVIO_FUNC_SRC) == 0))
+		entity = entity->list_next;
+
+	if (entity == NULL) {
+		debug_info("ERR: no src entity");
+		return;
+	}
+
+	write_reg(base_addr, src_py, RPF_SRCM_ADDR_Y(entity->idx));
+	write_reg(base_addr, src_pc, RPF_SRCM_ADDR_C0(entity->idx));
+	/* We do not update values in the 'src_hw' and 'src_user' */
 }
 
 static void
@@ -475,13 +529,25 @@ vio6_set_dst(
 	void *dst_py,
 	void *dst_pc)
 {
+	struct shvio_entity *entity = vio->sink_entity;
 	void *base_addr = vio->uio_mmio.iomem;
 	uint32_t Y, C;
 
+	if (entity == NULL)
+		return;
+
+	if (vio->dst_hw.py != vio->dst_user.py) {
+		size_t len = size_y(vio->dst_hw.format, vio->dst_hw.h * vio->dst_hw.w, 0);
+		len += size_c(vio->dst_hw.format, vio->dst_hw.h * vio->dst_hw.w, 0);
+		uiomux_free(vio->uiomux, vio->uiores, vio->dst_hw.py, len);
+	}
+
 	Y = uiomux_all_virt_to_phys(dst_py);
+	write_reg(base_addr, Y, WPF_DSTM_ADDR_Y(entity->idx));
+	vio->dst_hw.py = vio->dst_user.py = dst_py;
 	C = uiomux_all_virt_to_phys(dst_pc);
-	write_reg(base_addr, Y, WPF_DSTM_ADDR_Y(0));
-	write_reg(base_addr, C, WPF_DSTM_ADDR_C0(0));
+	write_reg(base_addr, C, WPF_DSTM_ADDR_C0(entity->idx));
+	vio->dst_hw.pc = vio->dst_user.pc = dst_pc;
 }
 
 static void
@@ -491,15 +557,28 @@ vio6_set_dst2(
 	void *dst_pcb,
 	void *dst_pcr)
 {
+	struct shvio_entity *entity = vio->sink_entity;
 	void *base_addr = vio->uio_mmio.iomem;
 	uint32_t Y, Cb, Cr;
 
+	if (entity == NULL)
+		return;
+
+	if (vio->dst_hw.py != vio->dst_user.py) {
+		size_t len = size_y(vio->dst_hw.format, vio->dst_hw.h * vio->dst_hw.w, 0);
+		len += size_c(vio->dst_hw.format, vio->dst_hw.h * vio->dst_hw.w, 0);
+		uiomux_free(vio->uiomux, vio->uiores, vio->dst_hw.py, len);
+	}
+
 	Y = uiomux_all_virt_to_phys(dst_py);
+	write_reg(base_addr, Y, WPF_DSTM_ADDR_Y(entity->idx));
+	vio->dst_hw.py = vio->dst_user.py = dst_py;
 	Cb = uiomux_all_virt_to_phys(dst_pcb);
+	write_reg(base_addr, Cb, WPF_DSTM_ADDR_C0(entity->idx));
+	vio->dst_hw.pc = vio->dst_user.pc = dst_pcb;
 	Cr = uiomux_all_virt_to_phys(dst_pcr);
-	write_reg(base_addr, Y, WPF_DSTM_ADDR_Y(0));
-	write_reg(base_addr, Cb, WPF_DSTM_ADDR_C0(0));
-	write_reg(base_addr, Cr, WPF_DSTM_ADDR_C1(0));
+	write_reg(base_addr, Cr, WPF_DSTM_ADDR_C1(entity->idx));
+	vio->dst_hw.pc2 = vio->dst_user.pc2 = dst_pcr;
 }
 
 static void
@@ -508,10 +587,21 @@ vio6_set_dst_phys(
 	uint32_t dst_py,
 	uint32_t dst_pc)
 {
+	struct shvio_entity *entity = vio->sink_entity;
 	void *base_addr = vio->uio_mmio.iomem;
 
-	write_reg(base_addr, dst_py, WPF_DSTM_ADDR_Y(0));
-	write_reg(base_addr, dst_pc, WPF_DSTM_ADDR_C0(0));
+	if (entity == NULL)
+		return;
+
+	if (vio->dst_hw.py != vio->dst_user.py) {
+		size_t len = size_y(vio->dst_hw.format, vio->dst_hw.h * vio->dst_hw.w, 0);
+		len += size_c(vio->dst_hw.format, vio->dst_hw.h * vio->dst_hw.w, 0);
+		uiomux_free(vio->uiomux, vio->uiores, vio->dst_hw.py, len);
+	}
+
+	write_reg(base_addr, dst_py, WPF_DSTM_ADDR_Y(entity->idx));
+	write_reg(base_addr, dst_pc, WPF_DSTM_ADDR_C0(entity->idx));
+	/* We do not update values in the 'dst_hw' and 'dst_user' */
 }
 
 static void
