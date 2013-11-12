@@ -176,6 +176,8 @@ static const struct vio_format_info vio_fmts[] = {
 	{ REN_RGB24,	FMT_RGB888,	0xf },
 	{ REN_BGR24,	FMT_BGR888,	0xf },
 	{ REN_RGB32,	FMT_RGBX888,	0xc },
+	{ REN_BGR32,	FMT_RGBX888,	0xf },
+	{ REN_BGRA32,	FMT_RGBX888,	0xf },
 	{ REN_XRGB32,	FMT_ARGB8888,	0xc },
 	{ REN_ARGB32,	FMT_ARGB8888,	0xc },
 };
@@ -364,9 +366,14 @@ static void set_scale(void *base_addr, int id, int vertical,
 
 	/* calculate FRAC and MANT */
 	if (size_in != size_out) {
+#if 1
 		fixpoint = (4096 * size_in) / size_out;
 		mant = fixpoint / 4096;
 		frac = fixpoint - (mant * 4096);
+#else
+		mant = fixpoint;
+		frac = 4096 * (size_in - 1) / (size_out - 1) - (mant * 4096);
+#endif
 	} else {
 		mant = 1;
 		frac = 0;
@@ -423,13 +430,33 @@ vio6_set_src(
 	void *src_py,
 	void *src_pc)
 {
+	struct shvio_entity *entity;
 	void *base_addr = vio->uio_mmio.iomem;
 	uint32_t Y, C;
 
+	/* look for a source entity */
+	entity = vio->locked_entities;
+	while (entity != NULL &&
+	       ((entity->funcs & SHVIO_FUNC_SRC) == 0))
+		entity = entity->list_next;
+
+	if (entity == NULL) {
+		debug_info("ERR: no src entity");
+		return;
+	}
+
+	if (vio->src_hw.py != vio->src_user.py) {
+		size_t len = size_y(vio->src_hw.format, vio->src_hw.h * vio->src_hw.w, 0);
+		len += size_c(vio->src_hw.format, vio->src_hw.h * vio->src_hw.w, 0);
+		uiomux_free(vio->uiomux, vio->uiores, vio->src_hw.py, len);
+	}
+
 	Y = uiomux_all_virt_to_phys(src_py);
+	write_reg(base_addr, Y, RPF_SRCM_ADDR_Y(entity->idx));
+	vio->src_hw.py = vio->src_user.py = src_py;
 	C = uiomux_all_virt_to_phys(src_pc);
-	write_reg(base_addr, Y, RPF_SRCM_ADDR_Y(0));
-	write_reg(base_addr, C, RPF_SRCM_ADDR_C0(0));
+	write_reg(base_addr, C, RPF_SRCM_ADDR_C0(entity->idx));
+	vio->src_hw.pc = vio->src_user.pc = src_pc;
 }
 
 static void
@@ -439,15 +466,36 @@ vio6_set_src2(
 	void *src_pcb,
 	void *src_pcr)
 {
+	struct shvio_entity *entity;
 	void *base_addr = vio->uio_mmio.iomem;
 	uint32_t Y, Cb, Cr;
 
+	/* look for a source entity */
+	entity = vio->locked_entities;
+	while (entity != NULL &&
+	       ((entity->funcs & SHVIO_FUNC_SRC) == 0))
+		entity = entity->list_next;
+
+	if (entity == NULL) {
+		debug_info("ERR: no src entity");
+		return;
+	}
+
+	if (vio->src_hw.py != vio->src_user.py) {
+		size_t len = size_y(vio->src_hw.format, vio->src_hw.h * vio->src_hw.w, 0);
+		len += size_c(vio->src_hw.format, vio->src_hw.h * vio->src_hw.w, 0);
+		uiomux_free(vio->uiomux, vio->uiores, vio->src_hw.py, len);
+	}
+
 	Y = uiomux_all_virt_to_phys(src_py);
+	write_reg(base_addr, Y, RPF_SRCM_ADDR_Y(entity->idx));
+	vio->src_hw.py = vio->src_user.py = src_py;
 	Cb = uiomux_all_virt_to_phys(src_pcb);
+	write_reg(base_addr, Cb, RPF_SRCM_ADDR_C0(entity->idx));
+	vio->src_hw.pc = vio->src_user.pc = src_pcb;
 	Cr = uiomux_all_virt_to_phys(src_pcr);
-	write_reg(base_addr, Y, RPF_SRCM_ADDR_Y(0));
-	write_reg(base_addr, Cb, RPF_SRCM_ADDR_C0(0));
-	write_reg(base_addr, Cr, RPF_SRCM_ADDR_C1(0));
+	write_reg(base_addr, Cr, RPF_SRCM_ADDR_C1(entity->idx));
+	vio->src_hw.pc2 = vio->src_user.pc2 = src_pcr;
 }
 
 static void
@@ -456,10 +504,23 @@ vio6_set_src_phys(
 	uint32_t src_py,
 	uint32_t src_pc)
 {
+	struct shvio_entity *entity;
 	void *base_addr = vio->uio_mmio.iomem;
 
-	write_reg(base_addr, src_py, RPF_SRCM_ADDR_Y(0));
-	write_reg(base_addr, src_pc, RPF_SRCM_ADDR_C0(0));
+	/* look for a source entity */
+	entity = vio->locked_entities;
+	while (entity != NULL &&
+	       ((entity->funcs & SHVIO_FUNC_SRC) == 0))
+		entity = entity->list_next;
+
+	if (entity == NULL) {
+		debug_info("ERR: no src entity");
+		return;
+	}
+
+	write_reg(base_addr, src_py, RPF_SRCM_ADDR_Y(entity->idx));
+	write_reg(base_addr, src_pc, RPF_SRCM_ADDR_C0(entity->idx));
+	/* We do not update values in the 'src_hw' and 'src_user' */
 }
 
 static void
@@ -468,13 +529,25 @@ vio6_set_dst(
 	void *dst_py,
 	void *dst_pc)
 {
+	struct shvio_entity *entity = vio->sink_entity;
 	void *base_addr = vio->uio_mmio.iomem;
 	uint32_t Y, C;
 
+	if (entity == NULL)
+		return;
+
+	if (vio->dst_hw.py != vio->dst_user.py) {
+		size_t len = size_y(vio->dst_hw.format, vio->dst_hw.h * vio->dst_hw.w, 0);
+		len += size_c(vio->dst_hw.format, vio->dst_hw.h * vio->dst_hw.w, 0);
+		uiomux_free(vio->uiomux, vio->uiores, vio->dst_hw.py, len);
+	}
+
 	Y = uiomux_all_virt_to_phys(dst_py);
+	write_reg(base_addr, Y, WPF_DSTM_ADDR_Y(entity->idx));
+	vio->dst_hw.py = vio->dst_user.py = dst_py;
 	C = uiomux_all_virt_to_phys(dst_pc);
-	write_reg(base_addr, Y, WPF_DSTM_ADDR_Y(0));
-	write_reg(base_addr, C, WPF_DSTM_ADDR_C0(0));
+	write_reg(base_addr, C, WPF_DSTM_ADDR_C0(entity->idx));
+	vio->dst_hw.pc = vio->dst_user.pc = dst_pc;
 }
 
 static void
@@ -484,15 +557,28 @@ vio6_set_dst2(
 	void *dst_pcb,
 	void *dst_pcr)
 {
+	struct shvio_entity *entity = vio->sink_entity;
 	void *base_addr = vio->uio_mmio.iomem;
 	uint32_t Y, Cb, Cr;
 
+	if (entity == NULL)
+		return;
+
+	if (vio->dst_hw.py != vio->dst_user.py) {
+		size_t len = size_y(vio->dst_hw.format, vio->dst_hw.h * vio->dst_hw.w, 0);
+		len += size_c(vio->dst_hw.format, vio->dst_hw.h * vio->dst_hw.w, 0);
+		uiomux_free(vio->uiomux, vio->uiores, vio->dst_hw.py, len);
+	}
+
 	Y = uiomux_all_virt_to_phys(dst_py);
+	write_reg(base_addr, Y, WPF_DSTM_ADDR_Y(entity->idx));
+	vio->dst_hw.py = vio->dst_user.py = dst_py;
 	Cb = uiomux_all_virt_to_phys(dst_pcb);
+	write_reg(base_addr, Cb, WPF_DSTM_ADDR_C0(entity->idx));
+	vio->dst_hw.pc = vio->dst_user.pc = dst_pcb;
 	Cr = uiomux_all_virt_to_phys(dst_pcr);
-	write_reg(base_addr, Y, WPF_DSTM_ADDR_Y(0));
-	write_reg(base_addr, Cb, WPF_DSTM_ADDR_C0(0));
-	write_reg(base_addr, Cr, WPF_DSTM_ADDR_C1(0));
+	write_reg(base_addr, Cr, WPF_DSTM_ADDR_C1(entity->idx));
+	vio->dst_hw.pc2 = vio->dst_user.pc2 = dst_pcr;
 }
 
 static void
@@ -501,16 +587,27 @@ vio6_set_dst_phys(
 	uint32_t dst_py,
 	uint32_t dst_pc)
 {
+	struct shvio_entity *entity = vio->sink_entity;
 	void *base_addr = vio->uio_mmio.iomem;
 
-	write_reg(base_addr, dst_py, WPF_DSTM_ADDR_Y(0));
-	write_reg(base_addr, dst_pc, WPF_DSTM_ADDR_C0(0));
+	if (entity == NULL)
+		return;
+
+	if (vio->dst_hw.py != vio->dst_user.py) {
+		size_t len = size_y(vio->dst_hw.format, vio->dst_hw.h * vio->dst_hw.w, 0);
+		len += size_c(vio->dst_hw.format, vio->dst_hw.h * vio->dst_hw.w, 0);
+		uiomux_free(vio->uiomux, vio->uiores, vio->dst_hw.py, len);
+	}
+
+	write_reg(base_addr, dst_py, WPF_DSTM_ADDR_Y(entity->idx));
+	write_reg(base_addr, dst_pc, WPF_DSTM_ADDR_C0(entity->idx));
+	/* We do not update values in the 'dst_hw' and 'dst_user' */
 }
 
 static void
 vio6_reset(SHVIO *vio)
 {
-	struct shvio_entity *entity;
+	struct shvio_entity *entity = vio->sink_entity;
 	void *base_addr = vio->uio_mmio.iomem;
 	const struct timespec timeout = {
 		.tv_sec = 0,
@@ -518,12 +615,6 @@ vio6_reset(SHVIO *vio)
 	};
 	uint32_t val;
 	int i;
-
-	/* look for the sink entity */
-	entity = vio->locked_entities;
-	while (entity != NULL &&
-	       ((entity->funcs & SHVIO_FUNC_SINK) == 0))
-		entity = entity->list_next;
 
 	if (entity == NULL) {
 		debug_info("ERR: no sink entity");
@@ -600,8 +691,8 @@ vio6_rpf_setup(SHVIO *vio, struct shvio_entity *entity,
 		Cr = uiomux_all_virt_to_phys(src->pc2);
 		write_reg(base_addr, Cr, RPF_SRCM_ADDR_C1(entity->idx));
 	}
-	write_reg(base_addr, 0, RPF_LOC(entity->idx));
-	if (src->format == REN_ARGB32)
+	write_reg(base_addr, (src->blend_out.x << 16) | src->blend_out.y, RPF_LOC(entity->idx));
+	if (has_alpha(src->format))
 		write_reg(base_addr, 0, RPF_ALPH_SEL(entity->idx));
 	else
 		write_reg(base_addr, 4 << 28, RPF_ALPH_SEL(entity->idx));
@@ -610,6 +701,8 @@ vio6_rpf_setup(SHVIO *vio, struct shvio_entity *entity,
 	   RPF_CKEY_CTRL, RPF_CKEY_SET0, RPF_CKEY_SET1 */
 	write_reg(base_addr, (src->w << 16) | src->h, RPF_SRC_BSIZE(entity->idx));
 	write_reg(base_addr, (src->w << 16) | src->h, RPF_SRC_ESIZE(entity->idx));
+	vio->bundle_remaining_lines = src->h;
+	vio->bundle_processing_lines = 0;
 	val = size_y(src->format, src->pitch, src->bpitchy);
 	val = val << 16;
 	if (is_ycbcr_planar(src->format))
@@ -661,7 +754,8 @@ static inline void rpfact(struct shvio_entity *entity, uint32_t *val)
 static void
 vio6_wpf_setup(SHVIO *vio, struct shvio_entity *entity,
 	       const struct ren_vid_surface *src,
-	       const struct ren_vid_surface *dst)
+	       const struct ren_vid_surface *dst,
+	       int bru_virt_act)
 {
 	void *base_addr = vio->uio_mmio.iomem;
 	const struct vio_format_info *viofmt;
@@ -681,6 +775,18 @@ vio6_wpf_setup(SHVIO *vio, struct shvio_entity *entity,
 
 	val = 0;
 	rpfact(entity, &val);
+	if (bru_virt_act) {
+		val |= SRC_VIRT_MAIN;
+	} else {
+		int i, mask = 0x3;
+		for (i = 0; i < 5; i++) {
+			if (val & mask) {
+				val = (val & ~mask) | 2 << (i*2);
+				break;
+			}
+			mask << 2;
+		}
+	}
 	write_reg(base_addr, val, WPF_SRCRPF(entity->idx));
 	write_reg(base_addr, 0, WPF_HSZCLIP(entity->idx));
 	write_reg(base_addr, 0, WPF_VSZCLIP(entity->idx));
@@ -721,7 +827,7 @@ vio6_uds_setup(SHVIO *vio, struct shvio_entity *entity,
 	void *base_addr = vio->uio_mmio.iomem;
 
 	/* UDF: scale setting */
-	if (src->format != REN_ARGB32) {
+	if (!has_alpha(src->format)) {
 		/* use bi-cubic convolution */
 		write_reg(base_addr, UDS_AMD | UDS_FMD | UDS_BC,
 			  UDS_CTRL(entity->idx));
@@ -739,6 +845,75 @@ vio6_uds_setup(SHVIO *vio, struct shvio_entity *entity,
 	set_scale(base_addr, entity->idx, 1, src->h, dst->h);
 	write_reg(base_addr, dst->w << 16 | dst->h, UDS_CLIP_SIZE(entity->idx));
 	write_reg(base_addr, 0, UDS_FILL_COLOR(entity->idx));
+
+}
+
+static void
+vio6_bru_setup(SHVIO *vio, struct shvio_entity *entity,
+	       const struct ren_vid_rect *virt,
+	       const struct ren_vid_surface *const *src_list,
+	       int src_count,
+	       const struct ren_vid_surface *dst)
+{
+	void *base_addr = vio->uio_mmio.iomem;
+	int bru_input = 0, blend_unit = 0;
+	int i;
+	unsigned int val;
+	const int bru_input_index[] = {
+		0x4, 		/* virtual input*/
+		0x0, 		/* BRUin0 */
+		0x1, 		/* BRUin1 */
+		0x2, 		/* BRUin2 */
+		0x3, 		/* BRUin3 */
+	};
+
+	write_reg(base_addr, 0, BRU_INCTRL);
+	write_reg(base_addr, 0, BRU_ROP);
+#if 0
+	/* virtual surface */
+	write_reg(base_addr, ((src->w / 2) << 16) | (src->h / 2), BRU_VIRRPF_SIZE);
+	write_reg(base_addr, ((src->w / 2) << 16) | (src->h / 2), BRU_VIRRPF_LOC);
+	write_reg(base_addr, 0x80800000, BRU_VIRRPF_COL);
+	write_reg(base_addr, 1 << 31 | 4 << 20 | 0 << 16 | 0 << 4 | 0, BRU_CTRL(0));
+#endif
+	/* SRC for Unit A = BRUin1, DST for Unit A = BRUin0 */
+	if (virt) {
+		write_reg(base_addr, (virt->w << 16) | virt->h, BRU_VIRRPF_SIZE);
+		write_reg(base_addr, 0xFF000000, BRU_VIRRPF_COL);
+		src_count++;
+	} else {
+		bru_input = 1; /* bypass virtual input */
+	}
+
+	for (i = 0; i < src_count - 1; i++) {
+		/* setup blend inputs */
+		val = 0;
+		if (i == 0)
+			val = (bru_input_index[bru_input++] << 20);
+		val |= (bru_input_index[bru_input++] << 16);
+		write_reg(base_addr, 1 << 31 | val, BRU_CTRL(i));
+		if (i == 1) { // ROP Unit needs to be set for B
+			write_reg(base_addr, val << 4, BRU_ROP);
+		}
+
+		/* setup blend coefficients */
+		switch (src_list[i]->flags & BLEND_MODE_MASK) {
+		case BLEND_MODE_COVERAGE:
+			val = (BRU_BLD_INV_SRCALPHA << 28) |
+					(BRU_BLD_SRCALPHA << 24);
+			break;
+		case BLEND_MODE_PREMULT:
+			val = (BRU_BLD_INV_SRCALPHA << 28) |
+					(BRU_BLD_FIXED << 24) | 255;
+			break;
+		}
+
+		write_reg(base_addr, val, BRU_BLD(i));
+	}
+
+	for (i = src_count - 1; i < 4; i++) {
+		write_reg(base_addr, 0, BRU_CTRL(i));
+	}
 
 }
 
@@ -791,7 +966,7 @@ vio6_link(SHVIO *vio, struct shvio_entity *src, struct shvio_entity *sink, int s
 
 	val = read_reg(base_addr, DPR_CTRL(src->dpr_ctrl));
 	val &= ~(0x1f << src->dpr_shift);
-	val |= sink->dpr_target << src->dpr_shift;
+	val |= (sink->dpr_target + sinkpad) << src->dpr_shift;
 	write_reg(base_addr, val, DPR_CTRL(src->dpr_ctrl));
 
 	sink->pad_in[sinkpad] = src;
@@ -878,13 +1053,15 @@ vio6_fill(
 	vsrc.format = REN_ARGB32;
 	vio6_rpf_setup(vio, ent_src, &vsrc, dst);
 	vio6_rpf_control(vio, ent_src, RPF_ENABLE_VIRTIN, argb);
-	vio6_wpf_setup(vio, ent_sink, dst, dst);
+	vio6_wpf_setup(vio, ent_sink, dst, dst, 0);
+	vio->sink_entity = ent_sink;
 
 	return 0;
 fail_link_entities:
 fail_lock_entities:
 	while (vio->locked_entities != NULL)
 		vio6_unlock(vio, vio->locked_entities);
+	vio->sink_entity = NULL;
 	return -1;
 }
 
@@ -917,8 +1094,7 @@ vio6_setup(
 	ent_scale = vio6_lock(vio, SHVIO_FUNC_SCALE);
 	ent_sink = vio6_lock(vio, SHVIO_FUNC_SINK);
 
-	if ((ent_src == NULL) ||
-	    (ent_scale == NULL) || (ent_sink == NULL)) {
+	if ((ent_src == NULL) || (ent_scale == NULL) || (ent_sink == NULL)) {
 		debug_info("ERR: No entity unavailable!");
 		goto fail_lock_entities;
 	}
@@ -937,29 +1113,64 @@ vio6_setup(
 		debug_info("ERR: cannot make a link from scale to sink");
 		goto fail_link_entities;
 	}
-	vio6_wpf_setup(vio, ent_sink, src, dst);	/* color */
+	vio6_wpf_setup(vio, ent_sink, src, dst, 0);	/* color */
+	vio->sink_entity = ent_sink;
 
 	return 0;
 fail_link_entities:
 fail_lock_entities:
 	while (vio->locked_entities != NULL)
 		vio6_unlock(vio, vio->locked_entities);
+	vio->sink_entity = NULL;
 	return -1;
 }
 
 static void
 vio6_start(SHVIO *vio)
 {
+	struct shvio_entity *entity = vio->sink_entity;
 	void *base_addr = vio->uio_mmio.iomem;
-	struct shvio_entity *entity;
-
-	entity = vio->locked_entities;
-	while (entity != NULL &&
-	       ((entity->funcs & SHVIO_FUNC_SINK) == 0))
-		entity = entity->list_next;
 
 	if (entity == NULL)
 		return;
+
+	vio->bundle_processing_lines = vio->bundle_remaining_lines;
+
+	/* enable interrupt in VIO */
+	write_reg(base_addr, 1, WPF_IRQ_ENB(entity->idx));
+
+	/* start operation */
+	write_reg(base_addr, 1, CMD(entity->idx));
+}
+
+static void
+vio6_start_bundle(SHVIO *vio, int bundle_lines)
+{
+	const struct ren_vid_surface *src = &vio->src_hw;
+	void *base_addr = vio->uio_mmio.iomem;
+	struct shvio_entity *entity = vio->sink_entity;
+
+	if (entity == NULL)
+		return;
+
+	if (bundle_lines != vio->bundle_processing_lines) { 
+		struct shvio_entity *src_entity;
+
+		/* find a source entity from a linked entities chain */
+		src_entity = vio->locked_entities;
+		while (src_entity != NULL &&
+		       ((src_entity->funcs & SHVIO_FUNC_SRC) == 0))
+			src_entity = src_entity->list_next;
+		if (src_entity) {
+			/* fix up src's height settings */
+			write_reg(base_addr, (src->w << 16) | bundle_lines,
+				  RPF_SRC_BSIZE(src_entity->idx));
+			write_reg(base_addr, (src->w << 16) | bundle_lines,
+				  RPF_SRC_ESIZE(src_entity->idx));
+		}
+		/* save value of the bundle lines */
+		vio->bundle_processing_lines = bundle_lines;
+	}
 
 	/* enable interrupt in VIO */
 	write_reg(base_addr, 1, WPF_IRQ_ENB(entity->idx));
@@ -971,17 +1182,14 @@ vio6_start(SHVIO *vio)
 static int
 vio6_wait(SHVIO *vio)
 {
+	struct shvio_entity *entity = vio->sink_entity;
+	const struct ren_vid_surface *dst = &vio->dst_hw;
+	const struct ren_vid_surface *src = &vio->src_hw;
 	void *base_addr = vio->uio_mmio.iomem;
 	uint32_t vevtr;
 	uint32_t vstar;
 	int complete;
-	struct shvio_entity *entity;
-
-	/* look for a sink entity */
-	entity = vio->locked_entities;
-	while (entity != NULL &&
-	       ((entity->funcs & SHVIO_FUNC_SINK) == 0))
-		entity = entity->list_next;
+	int filled_lines;
 
 	if (entity == NULL)
 		return -1;
@@ -997,11 +1205,147 @@ vio6_wait(SHVIO *vio)
 
 	write_reg(base_addr, 0, WPF_IRQ_STA(entity->idx));   /* ack interrupts */
 
-	/* unlock all entities */
-	while (vio->locked_entities != NULL)
-		vio6_unlock(vio, vio->locked_entities);
+	filled_lines = vio->bundle_processing_lines;
+	vio->bundle_remaining_lines -= filled_lines;
+
+	if (vio->bundle_remaining_lines <= 0) {
+		/* unlock all entities */
+		while (vio->locked_entities != NULL)
+			vio6_unlock(vio, vio->locked_entities);
+		vio->sink_entity = NULL;
+		vio->bundle_remaining_lines = src->h;
+		vio->bundle_processing_lines = 0;
+	} else {
+		uint32_t val;
+
+		val = read_reg(base_addr, WPF_DSTM_ADDR_Y(entity->idx)) +
+			size_y(dst->format, dst->pitch,
+			       dst->bpitchy) * filled_lines;
+		write_reg(base_addr, val, WPF_DSTM_ADDR_Y(entity->idx));
+		if (is_ycbcr(dst->format)) {
+			val = read_reg(base_addr,
+				       WPF_DSTM_ADDR_C0(entity->idx)) +
+				size_c(dst->format, dst->pitch,
+				       dst->bpitchc) * filled_lines;
+			write_reg(base_addr, val,
+				  WPF_DSTM_ADDR_C0(entity->idx));
+		}
+		if (is_ycbcr_planar(dst->format)) {
+			val = read_reg(base_addr,
+				       WPF_DSTM_ADDR_C1(entity->idx)) +
+				size_c(dst->format, dst->pitch,
+				       dst->bpitchc) * filled_lines;
+			write_reg(base_addr, val,
+				  WPF_DSTM_ADDR_C1(entity->idx));
+		}
+	}
 
 	return complete;
+}
+
+static int
+vio6_setup_blend(
+	SHVIO *vio,
+	const struct ren_vid_rect *virt,
+	const struct ren_vid_surface *const *src_list,
+	int src_count,
+	const struct ren_vid_surface *dst)
+{
+	uint32_t val;
+	void *base_addr;
+	struct shvio_entity *ent_src0, *ent_blend, *ent_sink;
+	int ret;
+	int i;
+
+	if (src_count < 2 || src_count > N_BLEND_INPUTS) {
+		debug_info("ERR: Invalid number of blend input sources");
+		return -1;
+	}
+
+	for (i = 0; i < src_count; i++) {
+		if (!format_supported(src_list[i]->format)) {
+			debug_info("ERR: Invalid surface format!");
+			return -1;
+		}
+	}
+
+	if (!format_supported(dst->format)) {
+		debug_info("ERR: Invalid surface format!");
+		return -1;
+	}
+
+	/* unlock all entities once */
+	while (vio->locked_entities != NULL)
+		vio6_unlock(vio, vio->locked_entities);
+	vio->sink_entity = NULL;
+
+	ent_blend = vio6_lock(vio, SHVIO_FUNC_BLEND);
+	ent_sink = vio6_lock(vio, SHVIO_FUNC_SINK);
+
+	if ((ent_sink == NULL) || (ent_blend == NULL)) {
+		debug_info("ERR: No entity unavailable!");
+		goto fail_lock_entities;
+	}
+
+	vio6_reset(vio);
+
+	for (i = 0; i < src_count; i++) {
+		struct shvio_entity *ent_src;
+		ent_src = vio6_lock(vio, SHVIO_FUNC_SRC);
+		if (ent_src == NULL) {
+			debug_info("ERR: No source entity unavailable!");
+			goto fail_lock_entities;
+		}
+		if (src_list[i]->w != src_list[i]->blend_out.w ||
+				src_list[i]->h != src_list[i]->blend_out.h) {
+			struct shvio_entity *ent_scale;
+			struct ren_vid_surface scale_out;
+			scale_out = *(src_list[i]);
+			scale_out.w = src_list[i]->blend_out.w;
+			scale_out.h = src_list[i]->blend_out.h;
+			ent_scale = vio6_lock(vio, SHVIO_FUNC_SCALE);
+			if (ent_scale == NULL) {
+				debug_info("ERR: No scale entity unavailable!");
+				goto fail_lock_entities;
+			}
+			ret = vio6_link(vio, ent_src, ent_scale, 0);	/* make a link from src to scale */
+			if (ret < 0) {
+				debug_info("ERR: cannot make a link from src to scale");
+				goto fail_link_entities;
+			}
+			vio6_uds_setup(vio, ent_scale, src_list[i], &scale_out);	/* color */
+			ret = vio6_link(vio, ent_scale, ent_blend, i);	/* make a link from scale to blend */
+			if (ret < 0) {
+				debug_info("ERR: cannot make a link from scale to blend");
+				goto fail_link_entities;
+			}
+		} else {
+			ret = vio6_link(vio, ent_src, ent_blend, i);	/* make a link from src to blend */
+			if (ret < 0) {
+				debug_info("ERR: cannot make a link from src to blend");
+				goto fail_link_entities;
+			}
+		}
+		vio6_rpf_setup(vio, ent_src, src_list[i], dst);	/* color */
+	}
+
+	vio6_bru_setup(vio, ent_blend, virt, src_list, src_count, dst);	/* width, height */
+
+	ret = vio6_link(vio, ent_blend, ent_sink, 0);	/* make a link from scale to sink */
+	if (ret < 0) {
+		debug_info("ERR: cannot make a link from scale to sink");
+		goto fail_link_entities;
+	}
+	vio6_wpf_setup(vio, ent_sink, dst, dst, (virt != NULL));	/* color */
+	vio->sink_entity = ent_sink;
+
+	return 0;
+fail_link_entities:
+fail_lock_entities:
+	while (vio->locked_entities != NULL)
+		vio6_unlock(vio, vio->locked_entities);
+	vio->sink_entity = NULL;
+	return -1;
 }
 
 const struct shvio_operations vio6_ops = {
@@ -1012,5 +1356,7 @@ const struct shvio_operations vio6_ops = {
 	.set_dst = vio6_set_dst,
 	.set_dst_phys = vio6_set_dst_phys,
 	.start = vio6_start,
+	.start_bundle = vio6_start_bundle,
 	.wait = vio6_wait,
+	.setup_blend = vio6_setup_blend,
 };

@@ -136,18 +136,6 @@ SHVIO *shvio_open_named(const char *name);
  */
 void shvio_close(SHVIO *vio);
 
-/**
- * Query a list of VIO available on this platform.
- * Returns the references to the names of available VIO.
- * If you need to modify the returned array of strings, please copy the
- * array and strings before you do so. The result is shared by all callers
- * of this API in the same process context.
- * \param names List of VIO available. The array is terminated with NULL.
- * \param count Number of VIO.
- * \retval 0 on success; -1 on failure.
- */
-int shvio_list_vio(char ***names, int *count);
-
 #include <shvio/vio_colorspace.h>
 
 #ifdef __cplusplus

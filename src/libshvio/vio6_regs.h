@@ -107,6 +107,8 @@
 #define SRC_RPF3_SUB		(1 << 6)
 #define SRC_RPF4_MAIN		(2 << 8)
 #define SRC_RPF4_SUB		(1 << 8)
+#define SRC_VIRT_MAIN		(2 << 28)
+#define SRC_VIRT_SUB		(1 << 29)
 
 #define WPF_HSZCLIP(_n)		\
 	(0x1004 + ((_n) * 0x0100))	/* */
@@ -177,9 +179,14 @@
 #define BRU_VIRRPF_LOC		0x2a08	/* start/stop */
 #define BRU_VIRRPF_COL		0x2a0c	/* start/stop */
 #define BRU_CTRL(_m)	\
-	(0x2a10 + ((_n) * 0x0008))	/* */
+	(0x2a10 + ((_m) * 0x0008))	/* */
 #define BRU_BLD(_m)	\
-	(0x2a14 + ((_n) * 0x0008))	/* */
+	(0x2a14 + ((_m) * 0x0008))	/* */
 #define BRU_ROP			0x2a30	/* start/stop */
+#define BRU_BLD_DSTALPHA	0x0
+#define BRU_BLD_INV_DSTALPHA	0x1
+#define BRU_BLD_SRCALPHA	0x2
+#define BRU_BLD_INV_SRCALPHA	0x3
+#define BRU_BLD_FIXED		0x4
 
 #endif /* __SHVIO6_REGS_H__ */

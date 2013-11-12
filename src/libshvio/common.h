@@ -30,7 +30,13 @@
 #include "shvio/shvio.h"
 
 #ifdef DEBUG
+#ifdef ANDROID
+#include <cutils/log.h>
+#define debug_info(s) ALOGD("%s: %s\n", __func__, s)
+#else
 #define debug_info(s) fprintf(stderr, "%s: %s\n", __func__, s)
+#endif
+
 #else
 #define debug_info(s)
 #endif
@@ -54,6 +60,11 @@ struct shvio_operations {
 	void (*start)(SHVIO *vio);
 	void (*start_bundle)(SHVIO *vio, int bundle_lines);
 	int (*wait)(SHVIO *vio);
+	int (*setup_blend)(SHVIO *vio,
+			   const struct ren_vid_rect *virt,
+			   const struct ren_vid_surface *const *src_list,
+			   int src_count,
+			   const struct ren_vid_surface *dst_surface);
 };
 
 typedef enum {
@@ -67,6 +78,7 @@ typedef enum {
 } shvio_func_t;
 
 #define N_INPADS	4
+#define N_BLEND_INPUTS	4
 
 struct shvio_entity {
 	int			idx;
@@ -92,9 +104,12 @@ struct SHVIO {
 	struct ren_vid_surface dst_hw;
 	int bt709;
 	int full_range;
+	int bundle_processing_lines;
+	int bundle_remaining_lines;
 
 	struct shvio_operations ops;
 	struct shvio_entity *locked_entities;
+	struct shvio_entity *sink_entity;
 };
 
 #endif /* __API_H__ */

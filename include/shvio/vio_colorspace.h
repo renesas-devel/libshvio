@@ -50,7 +50,9 @@ typedef enum {
 	REN_RGB24,   /**< Packed RGB888 */
 	REN_BGR24,   /**< Packed BGR888 */
 	REN_RGB32,   /**< Packed RGBX8888 (least significant byte ignored) */
+	REN_BGR32,   /**< Packed XBGR8888 (most significant byte ignored) */
 	REN_XRGB32,  /**< Packed XRGB8888 (most significant byte ignored) */
+	REN_BGRA32,  /**< Packed ABGR8888 */
 	REN_ARGB32,  /**< Packed ARGB8888 */
 } ren_vid_format_t;
 
@@ -76,6 +78,8 @@ struct ren_vid_surface {
 	int bpitchy;  /**< Byte-pitch of Y plane (preferred than 'pitch', or ignored if 0) */
 	int bpitchc;  /**< Byte-pitch of CbCr plane (preferred than 'pitch', or ignored if 0) */
 	int bpitcha;  /**< Byte-pitch of Alpha plane (preferred than 'pitch', or ignored if 0) */
+	struct ren_vid_rect blend_out; /** Output window for blend operations */
+	int flags;
 };
 
 struct format_info {
@@ -100,9 +104,15 @@ static const struct format_info fmts[] = {
 	{ REN_RGB24,   3, 0, 0, 1, 1, 1 },
 	{ REN_BGR24,   3, 0, 0, 1, 1, 1 },
 	{ REN_RGB32,   4, 0, 0, 1, 1, 1 },
+	{ REN_BGR32,   4, 0, 0, 1, 1, 1 },
 	{ REN_XRGB32,  4, 0, 0, 1, 1, 1 },
+	{ REN_BGRA32,  4, 0, 0, 1, 1, 1 },
 	{ REN_ARGB32,  4, 0, 0, 1, 1, 1 },
 };
+
+static inline int has_alpha(ren_vid_format_t fmt) {
+	return (fmt == REN_BGRA32 || fmt == REN_ARGB32);
+}
 
 static inline int is_ycbcr(ren_vid_format_t fmt)
 {
@@ -187,12 +197,12 @@ static inline void get_sel_surface(
 	const struct ren_vid_surface *in,
 	const struct ren_vid_rect *sel)
 {
-	int x = sel->x & ~horz_increment(in->format);
-	int y = sel->y & ~vert_increment(in->format);
+	int x = sel->x & ~(horz_increment(in->format)-1);
+	int y = sel->y & ~(vert_increment(in->format)-1);
 
 	*out = *in;
-	out->w = sel->w & ~horz_increment(in->format);
-	out->h = sel->h & ~vert_increment(in->format);
+	out->w = sel->w & ~(horz_increment(in->format)-1);
+	out->h = sel->h & ~(vert_increment(in->format)-1);
 
 	if (in->py) out->py += offset_y(in->format, x, y, in->pitch);
 	if (in->pc) out->pc += offset_c(in->format, x, y, in->pitch);
@@ -215,6 +225,14 @@ typedef enum {
 	SHVIO_NO_ROT=0,	/**< No rotation */
 	SHVIO_ROT_90,	/**< Rotate 90 degrees clockwise */
 } shvio_rotation_t;
+
+/** FLAGS values.  Set thse values in .flags per surface */
+
+/** Blend flags */
+#define BLEND_MODE_COVERAGE	(0 << 0)
+#define BLEND_MODE_PREMULT	(1 << 0)
+#define BLEND_MODE_MASK		(1 << 0)
+
 
 /** Setup a (scale|rotate) & crop between YCbCr & RGB surfaces
  * The scaling factor is calculated from the surface sizes.
@@ -296,6 +314,15 @@ void
 shvio_start(
 	SHVIO *vio);
 
+/** Check if hardware support the bundle mode.
+ * \param vio VIO handle
+ * \retval 0 Supports the bundle mode
+ * \retval -1 Not support the bunfle mode
+ */
+int
+shvio_has_bundle(
+	 SHVIO *vio);
+
 /** Start a VIO operation (bundle mode).
  * \param vio VIO handle
  * \param bundle_lines Number of lines to process
@@ -358,5 +385,45 @@ shvio_fill(
 	SHVIO *vio,
 	const struct ren_vid_surface *dst_surface,
 	uint32_t argb);
+
+/**
+ * Query a list of VIO available on this platform.
+ * Returns the references to the names of available VIO.
+ * If you need to modify the returned array of strings, please copy the
+ * array and strings before you do so. The result is shared by all callers
+ * of this API in the same process context.
+ * \param names List of VIO available. The array is terminated with NULL.
+ * \param count Number of VIO.
+ * \retval 0 on success; -1 on failure.
+ */
+int shvio_list_vio(char ***names, int *count);
+
+/** Start a surface blend
+ * \param vio VIO handle
+ * \param virt Virtual parent surface. The output will be this size (optional)
+ * \param src_list list in overlay surfaces.
+ *                 src_list[0] will be parent if virt = NULL
+ * \param src count number of surfaces specified by src_list
+ * \param dest Output surface.
+ * \retval 0 Success
+ * \retval -1 Error
+ */
+int
+shvio_setup_blend(
+	SHVIO *vio,
+	const struct ren_vid_rect *virt,
+	const struct ren_vid_surface *const *src_list,
+	int src_count,
+	const struct ren_vid_surface *dst);
+
+/** Perform a surface blend.
+ * See shvio_start_blend for parameter definitions.
+ */
+int
+shvio_blend(
+	SHVIO *vio,
+	const struct ren_vid_surface *const *src_list,
+	int src_count,
+	const struct ren_vid_surface *dst);
 
 #endif /* __VIO_COLORSPACE_H__ */

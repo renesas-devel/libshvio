@@ -5,7 +5,7 @@ LOCAL_C_INCLUDES := \
 	$(LOCAL_PATH)/../../include \
 	external/libuiomux/include
 
-#LOCAL_CFLAGS := -DDEBUG
+LOCAL_CFLAGS := -DDEBUG
 
 LOCAL_SRC_FILES := \
 	common.c veu.c vio6.c
