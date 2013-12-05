@@ -1044,6 +1044,7 @@ vio6_fill(
 		goto fail_lock_entities;
 	}
 
+	vio->sink_entity = ent_sink;
 	vio6_reset(vio);
 	ret = vio6_link(vio, ent_src, ent_sink, 0);	/* make a link from src to sink */
 	if (ret < 0) {
@@ -1054,7 +1055,6 @@ vio6_fill(
 	vio6_rpf_setup(vio, ent_src, &vsrc, dst);
 	vio6_rpf_control(vio, ent_src, RPF_ENABLE_VIRTIN, argb);
 	vio6_wpf_setup(vio, ent_sink, dst, dst, 0);
-	vio->sink_entity = ent_sink;
 
 	return 0;
 fail_link_entities:
@@ -1099,6 +1099,7 @@ vio6_setup(
 		goto fail_lock_entities;
 	}
 
+	vio->sink_entity = ent_sink;
 	vio6_reset(vio);
 	ret = vio6_link(vio, ent_src, ent_scale, 0);	/* make a link from src to scale */
 	if (ret < 0) {
@@ -1114,7 +1115,6 @@ vio6_setup(
 		goto fail_link_entities;
 	}
 	vio6_wpf_setup(vio, ent_sink, src, dst, 0);	/* color */
-	vio->sink_entity = ent_sink;
 
 	return 0;
 fail_link_entities:
@@ -1287,6 +1287,7 @@ vio6_setup_blend(
 		goto fail_lock_entities;
 	}
 
+	vio->sink_entity = ent_sink;
 	vio6_reset(vio);
 
 	for (i = 0; i < src_count; i++) {
@@ -1337,7 +1338,6 @@ vio6_setup_blend(
 		goto fail_link_entities;
 	}
 	vio6_wpf_setup(vio, ent_sink, dst, dst, (virt != NULL));	/* color */
-	vio->sink_entity = ent_sink;
 
 	return 0;
 fail_link_entities:
